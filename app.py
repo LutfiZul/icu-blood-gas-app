@@ -149,16 +149,15 @@ hr { border-color: var(--border) !important; }
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
-# CONSTANTS
+# CONSTANTS — FYP: Fecal Peritonitis ICU
 # ─────────────────────────────────────────────
-TARGETS   = ["pH", "PaCO2", "PaO2", "O2_Saturation", "HCO3"]
-BIO_CAPS  = {
-    "pH":            (6.5, 8.0),
-    "PaCO2":         (0, None),
-    "PaO2":          (0, None),
-    "O2_Saturation": (0, 100),
-    "HCO3":          (0, None),
-}
+TARGETS  = ["pH", "PaCO2", "PaO2", "O2_Saturation", "HCO3"]
+
+# 10 features dari FYP korang
+FEATURES = [
+    "Age", "Gender", "Severity_Score", "Heart_Rate", "Temperature",
+    "WBC_Count", "Lactate_Level", "Mechanical_Ventilation", "Systolic", "Diastolic",
+]
 
 NORMAL_RANGES = {
     "pH":            (7.35, 7.45),
@@ -192,100 +191,130 @@ def dark_fig(w=10, h=5):
     return fig, ax
 
 # ─────────────────────────────────────────────
-# DATA PROCESSING
+# STEP 1 — PRE-PROCESSING (dari FYP korang)
 # ─────────────────────────────────────────────
 @st.cache_data(show_spinner=False)
 def load_and_process(raw_bytes: bytes) -> pd.DataFrame:
     df = pd.read_csv(io.BytesIO(raw_bytes))
 
-    # Split Blood_Pressure  "120/80" → Systolic / Diastolic
+    # Pecahkan Blood_Pressure "120/80" → Systolic / Diastolic
     if "Blood_Pressure" in df.columns:
         bp = df["Blood_Pressure"].astype(str).str.split("/", expand=True)
         df["Systolic"]  = pd.to_numeric(bp[0], errors="coerce")
         df["Diastolic"] = pd.to_numeric(bp[1], errors="coerce")
         df.drop(columns=["Blood_Pressure"], inplace=True)
 
-    # Gender & Mechanical_Ventilation → binary
+    # Convert Categorical → Digital (sama macam FYP korang)
     if "Gender" in df.columns:
-        df["Gender"] = df["Gender"].map({"Male": 1, "Female": 0, "M": 1, "F": 0}).fillna(df["Gender"])
+        df["Gender"] = df["Gender"].map({"Male": 1, "Female": 0, "M": 1, "F": 0})
     if "Mechanical_Ventilation" in df.columns:
-        df["Mechanical_Ventilation"] = df["Mechanical_Ventilation"].map({"Yes": 1, "No": 0}).fillna(df["Mechanical_Ventilation"])
+        df["Mechanical_Ventilation"] = df["Mechanical_Ventilation"].map({"Yes": 1, "No": 0})
 
-    # Coerce all to numeric
+    # Coerce semua ke numeric
     for col in df.columns:
-        if col not in ("Patient_ID",):
+        if col != "Patient_ID":
             df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    # Fill missing vital signs with column mean
-    vital_cols = [c for c in df.columns if c not in TARGETS + ["Patient_ID"]]
-    for col in vital_cols:
-        if df[col].isna().any():
-            df[col].fillna(df[col].mean(), inplace=True)
 
     return df
 
 # ─────────────────────────────────────────────
-# AI MODEL
+# STEP 2 — DEEP LEARNING INFERENCE ENGINE
+#           (Logic terus dari FYP korang)
 # ─────────────────────────────────────────────
-def apply_bio_caps(col_name: str, values: np.ndarray) -> np.ndarray:
-    lo, hi = BIO_CAPS.get(col_name, (0, None))
-    if lo is not None:
-        values = np.maximum(values, lo)
-    if hi is not None:
-        values = np.minimum(values, hi)
-    return values
-
-
 @st.cache_data(show_spinner=False)
-def train_and_predict(df_bytes: bytes) -> tuple[pd.DataFrame, dict]:
-    df = load_and_process(df_bytes)
+def train_and_predict(raw_bytes: bytes):
+    df = load_and_process(raw_bytes)
 
-    feature_cols = [c for c in df.columns if c not in TARGETS + ["Patient_ID"]]
-    X = df[feature_cols].values
+    # Tentukan features yang wujud dalam data
+    available_features = [f for f in FEATURES if f in df.columns]
 
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
+    # Pastikan tiada NaN dalam features sebelum training
+    df_complete = df.dropna(subset=available_features)
 
-    predictions = {}
-    importances  = {}
+    importances = {}
+    log_messages = []
 
     for target in TARGETS:
         if target not in df.columns:
-            # No ground truth → still predict a plausible column of zeros as placeholder
             df[target] = np.nan
 
-        has_labels = df[target].notna().sum() > 10
-        y = df[target].fillna(df[target].mean() if has_labels else 0).values
+        # Cari baris yang ada Ground Truth untuk target ini
+        df_train = df_complete.dropna(subset=[target])
 
+        # ── Statistical Imputation (logic FYP korang) ──
+        # Jika data ground truth < 5, guna korelasi Lactate
+        if len(df_train) < 5:
+            log_messages.append(f"⚠️ {target}: Data terhad — Statistical Imputation digunakan.")
+            if "Lactate_Level" in df.columns:
+                if target == "pH":
+                    df[target] = df[target].fillna(7.4 - (df["Lactate_Level"] * 0.02))
+                elif target == "HCO3":
+                    df[target] = df[target].fillna(24 - (df["Lactate_Level"] * 0.5))
+                else:
+                    fallback = df[target].mean() if not df[target].isnull().all() else 95.0
+                    df[target] = df[target].fillna(fallback)
+            else:
+                fallback = df[target].mean() if not df[target].isnull().all() else 95.0
+                df[target] = df[target].fillna(fallback)
+            df_train = df.dropna(subset=[target] + available_features)
+        else:
+            log_messages.append(f"✅ {target}: {len(df_train)} rekod ground truth ditemui.")
+
+        X_train = df_train[available_features]
+        y_train = df_train[target]
+
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+
+        # ── ANN: 2 Hidden Layers (12, 12) — sama macam FYP ──
         model = MLPRegressor(
             hidden_layer_sizes=(12, 12),
             activation="relu",
             solver="adam",
-            max_iter=500,
+            max_iter=5000,
             random_state=42,
-            early_stopping=True,
-            n_iter_no_change=20,
         )
-        model.fit(X_scaled, y)
-        preds = model.predict(X_scaled)
-        preds = apply_bio_caps(target, preds)
-        predictions[target] = preds
+        model.fit(X_train_scaled, y_train)
 
-        # Permutation-style importance via coeff magnitude proxy
-        base_score = np.mean((model.predict(X_scaled) - y) ** 2)
+        # ── PREDICT: Isi semua NaN dalam kolum tersebut ──
+        nan_mask = df[target].isna()
+        if nan_mask.any():
+            X_pred = df.loc[nan_mask, available_features].fillna(
+                df[available_features].mean()
+            )
+            X_pred_scaled = scaler.transform(X_pred)
+            preds = model.predict(X_pred_scaled)
+
+            # ── Had Fisiologi / Biological Capping ──
+            if target == "pH":
+                preds = np.clip(preds, 6.5, 8.0)
+            elif target == "O2_Saturation":
+                preds = np.clip(preds, 0, 100.0)
+            else:
+                preds = np.clip(preds, 0, None)
+
+            df.loc[nan_mask, target] = preds
+
+        # ── Permutation Feature Importance ──
+        X_all_scaled = scaler.transform(
+            df[available_features].fillna(df[available_features].mean())
+        )
+        y_all = df[target].values
+        base_mse = np.mean((model.predict(X_all_scaled) - y_all) ** 2)
         imp = []
-        for i in range(X_scaled.shape[1]):
-            X_perm = X_scaled.copy()
+        for i in range(X_all_scaled.shape[1]):
+            X_perm = X_all_scaled.copy()
             np.random.shuffle(X_perm[:, i])
-            p_score = np.mean((model.predict(X_perm) - y) ** 2)
-            imp.append(max(p_score - base_score, 0))
-        importances[target] = dict(zip(feature_cols, imp))
+            p_mse = np.mean((model.predict(X_perm) - y_all) ** 2)
+            imp.append(max(p_mse - base_mse, 0))
+        importances[target] = dict(zip(available_features, imp))
 
+    # Simpan AI predictions dalam kolum berasingan
     result_df = df.copy()
     for t in TARGETS:
-        result_df[f"AI_{t}"] = predictions[t]
+        result_df[f"AI_{t}"] = df[t]
 
-    return result_df, importances
+    return result_df, importances, log_messages
 
 # ─────────────────────────────────────────────
 # STATUS BADGE
@@ -348,21 +377,21 @@ def generate_sample_csv() -> bytes:
     n = 40
     data = {
         "Patient_ID":             [f"PT{1000+i}" for i in range(n)],
-        "Age":                    np.random.randint(25, 85, n),
+        "Age":                    np.random.randint(25, 85, n).astype(float),
         "Gender":                 np.random.choice(["Male", "Female"], n),
+        "Severity_Score":         np.round(np.random.uniform(5, 25, n), 1),
         "Heart_Rate":             np.random.randint(55, 130, n).astype(float),
-        "Blood_Pressure":         [f"{np.random.randint(100,160)}/{np.random.randint(60,100)}" for _ in range(n)],
-        "Respiratory_Rate":       np.random.randint(12, 30, n).astype(float),
         "Temperature":            np.round(np.random.uniform(36.0, 39.5, n), 1),
-        "SpO2":                   np.random.randint(88, 100, n).astype(float),
+        "WBC_Count":              np.round(np.random.uniform(4.0, 20.0, n), 1),
+        "Lactate_Level":          np.round(np.random.uniform(0.5, 8.0, n), 2),
         "Mechanical_Ventilation": np.random.choice(["Yes", "No"], n),
-        "FiO2":                   np.round(np.random.uniform(0.21, 1.0, n), 2),
-        # Targets (some missing)
-        "pH":            np.where(np.random.rand(n) < 0.3, np.nan, np.round(np.random.uniform(7.25, 7.55, n), 2)),
-        "PaCO2":         np.where(np.random.rand(n) < 0.3, np.nan, np.round(np.random.uniform(30, 55, n), 1)),
-        "PaO2":          np.where(np.random.rand(n) < 0.3, np.nan, np.round(np.random.uniform(60, 110, n), 1)),
-        "O2_Saturation": np.where(np.random.rand(n) < 0.3, np.nan, np.round(np.random.uniform(88, 100, n), 1)),
-        "HCO3":          np.where(np.random.rand(n) < 0.3, np.nan, np.round(np.random.uniform(18, 30, n), 1)),
+        "Blood_Pressure":         [f"{np.random.randint(90,170)}/{np.random.randint(55,105)}" for _ in range(n)],
+        # Targets — sebahagian sengaja dikosongkan (NaN) untuk AI predict
+        "pH":            np.where(np.random.rand(n) < 0.35, np.nan, np.round(np.random.uniform(7.20, 7.55, n), 2)),
+        "PaCO2":         np.where(np.random.rand(n) < 0.35, np.nan, np.round(np.random.uniform(28, 58, n), 1)),
+        "PaO2":          np.where(np.random.rand(n) < 0.35, np.nan, np.round(np.random.uniform(55, 115, n), 1)),
+        "O2_Saturation": np.where(np.random.rand(n) < 0.35, np.nan, np.round(np.random.uniform(85, 100, n), 1)),
+        "HCO3":          np.where(np.random.rand(n) < 0.35, np.nan, np.round(np.random.uniform(15, 32, n), 1)),
     }
     df = pd.DataFrame(data)
     buf = io.StringIO()
@@ -389,10 +418,16 @@ if raw_bytes is None:
 
 # ── Process ──────────────────────────────────
 with st.spinner("🧠  Training AI models & predicting blood gas values…"):
-    result_df, importances = train_and_predict(raw_bytes)
+    result_df, importances, ai_logs = train_and_predict(raw_bytes)
     processed_df = load_and_process(raw_bytes)
 
 st.success(f"✅  Predictions complete — **{len(result_df)} patients** processed.")
+
+# Tunjuk log AI engine (sama macam terminal output FYP korang)
+with st.expander("🔬 AI Engine Log — Deep Learning Inference", expanded=False):
+    for msg in ai_logs:
+        color = "#F4A623" if "⚠️" in msg else "#0E9E8E"
+        st.markdown(f"<span style='color:{color}; font-family:monospace'>{msg}</span>", unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
 # TAB LAYOUT
