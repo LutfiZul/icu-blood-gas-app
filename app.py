@@ -76,7 +76,7 @@ NORMAL_RANGES = {
     "HCO3":          (22,   26),
 }
 UNITS = {"pH":"","PaCO2":"mmHg","PaO2":"mmHg","O2_Saturation":"%","HCO3":"mEq/L"}
-MIN_FILE_BYTES = 1229  # 1.2 KB
+MIN_FILE_BYTES = 0  # No minimum file size
 
 # ─────────────────────────────────────────────
 # PHYSIOLOGICAL BLOOD GAS FORMULAS
@@ -226,14 +226,13 @@ def train_and_predict(raw_bytes: bytes):
     df = load_and_process(raw_bytes)
     available_features = [f for f in FEATURES if f in df.columns]
     df_complete = df.dropna(subset=available_features)
-    importances, log_messages, r2_scores = {}, [], {}
+    importances, log_messages, r2_scores, accuracy_data = {}, [], {}, {}
 
     for target in TARGETS:
         if target not in df.columns:
             df[target] = np.nan
 
         df_train = df_complete.dropna(subset=[target])
-        used_formula = False
 
         if len(df_train) < 5:
             # ── FALLBACK: Physiological Formula ──
@@ -243,8 +242,8 @@ def train_and_predict(raw_bytes: bytes):
             if nan_mask.any():
                 df.loc[nan_mask, target] = formula_preds[nan_mask]
             importances[target] = {f: 1/len(available_features) for f in available_features}
-            r2_scores[target] = None
-            used_formula = True
+            r2_scores[target]   = None
+            accuracy_data[target] = None
         else:
             log_messages.append(f"✅ {target}: {len(df_train)} rekod ground truth → ANN (12,12) dilatih.")
 
@@ -264,17 +263,34 @@ def train_and_predict(raw_bytes: bytes):
             )
             model.fit(X_sc, y_train)
 
-            # R² score
+            # ── Accuracy Metrics on training ground truth ──
             y_pred_train = model.predict(X_sc)
-            ss_res = np.sum((y_train.values - y_pred_train)**2)
-            ss_tot = np.sum((y_train.values - y_train.mean())**2)
-            r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
-            r2_scores[target] = round(r2, 4)
+            actual   = y_train.values
+            predicted = y_pred_train
+
+            ss_res = np.sum((actual - predicted) ** 2)
+            ss_tot = np.sum((actual - actual.mean()) ** 2)
+            r2   = round(1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0, 4)
+            mae  = round(float(np.mean(np.abs(actual - predicted))), 4)
+            rmse = round(float(np.sqrt(np.mean((actual - predicted) ** 2))), 4)
+            # Pearson r
+            corr_r = round(float(np.corrcoef(actual, predicted)[0, 1]), 4) if len(actual) > 1 else 0.0
+
+            r2_scores[target]   = r2
+            accuracy_data[target] = {
+                "actual":    actual.tolist(),
+                "predicted": predicted.tolist(),
+                "r2":   r2,
+                "mae":  mae,
+                "rmse": rmse,
+                "r":    corr_r,
+                "n":    len(actual),
+            }
 
             # Predict NaN rows
             nan_mask = df[target].isna()
             if nan_mask.any():
-                X_pred = df.loc[nan_mask, available_features].fillna(df[available_features].mean())
+                X_pred    = df.loc[nan_mask, available_features].fillna(df[available_features].mean())
                 X_pred_sc = scaler.transform(X_pred)
                 ann_preds = model.predict(X_pred_sc)
 
@@ -284,28 +300,27 @@ def train_and_predict(raw_bytes: bytes):
                 )
                 blended = 0.70 * ann_preds + 0.30 * formula_preds
 
-                # Biological capping
-                if target == "pH":            blended = np.clip(blended, 6.5, 8.0)
+                if target == "pH":              blended = np.clip(blended, 6.5, 8.0)
                 elif target == "O2_Saturation": blended = np.clip(blended, 0, 100.0)
                 else:                           blended = np.clip(blended, 0, None)
 
                 df.loc[nan_mask, target] = blended
 
             # Permutation Feature Importance
-            X_all = scaler.transform(df[available_features].fillna(df[available_features].mean()))
-            y_all = df[target].values
-            base_mse = np.mean((model.predict(X_all) - y_all)**2)
+            X_all  = scaler.transform(df[available_features].fillna(df[available_features].mean()))
+            y_all  = df[target].values
+            base_mse = np.mean((model.predict(X_all) - y_all) ** 2)
             imp = []
             for i in range(X_all.shape[1]):
                 Xp = X_all.copy(); np.random.shuffle(Xp[:, i])
-                imp.append(max(np.mean((model.predict(Xp) - y_all)**2) - base_mse, 0))
+                imp.append(max(np.mean((model.predict(Xp) - y_all) ** 2) - base_mse, 0))
             importances[target] = dict(zip(available_features, imp))
 
     result_df = df.copy()
     for t in TARGETS:
         result_df[f"AI_{t}"] = df[t]
 
-    return result_df, importances, log_messages, r2_scores
+    return result_df, importances, log_messages, r2_scores, accuracy_data
 
 # ─────────────────────────────────────────────
 # SAMPLE DATA GENERATOR  (≥ 1.2 KB)
@@ -352,11 +367,7 @@ with st.sidebar:
         help="CSV mesti mengandungi vital signs. Blood_Pressure format: '120/80'.")
 
     if uploaded:
-        if uploaded.size < MIN_FILE_BYTES:
-            st.error(f"❌ Fail terlalu kecil ({uploaded.size} bytes). Minimum {MIN_FILE_BYTES/1024:.1f} KB diperlukan.")
-            uploaded = None
-        else:
-            st.success(f"✅ Fail diterima ({uploaded.size/1024:.1f} KB)")
+        st.success(f"✅ Fail diterima ({uploaded.size/1024:.1f} KB)")
 
     st.markdown("---")
     st.markdown("### 🧮 Formula Yang Digunakan")
@@ -399,7 +410,7 @@ if raw_bytes is None:
     st.stop()
 
 with st.spinner("🧠  Melatih ANN & mengira blood gas..."):
-    result_df, importances, ai_logs, r2_scores = train_and_predict(raw_bytes)
+    result_df, importances, ai_logs, r2_scores, accuracy_data = train_and_predict(raw_bytes)
     processed_df = load_and_process(raw_bytes)
 
 st.success(f"✅  Selesai — **{len(result_df)} pesakit** diproses.")
@@ -412,9 +423,9 @@ with st.expander("🔬 AI Engine Log", expanded=False):
 # ─────────────────────────────────────────────
 # TABS
 # ─────────────────────────────────────────────
-tab_dash, tab_data, tab_viz, tab_formula, tab_export = st.tabs([
+tab_dash, tab_data, tab_viz, tab_accuracy, tab_formula, tab_export = st.tabs([
     "🏥 Patient Dashboard", "📋 All Patients", "📊 Analytics",
-    "🧮 Formula Validation", "⬇️ Export"
+    "🎯 Ketepatan Prediksi", "🧮 Formula Validation", "⬇️ Export"
 ])
 
 # ══════════════════════════════════════════════
@@ -552,7 +563,173 @@ with tab_viz:
     plt.tight_layout(); st.pyplot(fig_d); plt.close(fig_d)
 
 # ══════════════════════════════════════════════
-# TAB 4 — FORMULA VALIDATION
+# TAB 4 — KETEPATAN PREDIKSI (CORRELATION)
+# ══════════════════════════════════════════════
+with tab_accuracy:
+    st.markdown("### 🎯 Ketepatan Prediksi AI — Actual vs Predicted")
+    st.markdown("Graf korelasi ini menunjukkan sejauh mana ramalan AI sepadan dengan nilai sebenar (ground truth) dalam data latihan.")
+
+    # ── Summary scorecard row ──────────────────
+    avail_targets = [t for t in TARGETS if accuracy_data.get(t) is not None]
+
+    if not avail_targets:
+        st.warning("Tiada data ground truth yang mencukupi untuk mengira ketepatan. Pastikan kolum blood gas ada nilai sebenar.")
+    else:
+        st.markdown("#### 📊 Ringkasan Metrik Ketepatan")
+        score_cols = st.columns(len(avail_targets))
+        for i, t in enumerate(avail_targets):
+            d = accuracy_data[t]
+            r2 = d["r2"]
+            if r2 >= 0.85:   grade, gcolor = "Sangat Baik",  "#0E9E8E"
+            elif r2 >= 0.70: grade, gcolor = "Baik",         "#12C2B0"
+            elif r2 >= 0.50: grade, gcolor = "Sederhana",    "#F4A623"
+            else:            grade, gcolor = "Lemah",         "#E84C4C"
+            with score_cols[i]:
+                st.markdown(f"""
+<div style='background:#132035;border:1px solid {gcolor};border-radius:12px;
+padding:16px;text-align:center;'>
+  <div style='color:#8A9BB8;font-size:0.7rem;text-transform:uppercase;letter-spacing:1px'>{t}</div>
+  <div style='color:{gcolor};font-family:"Space Mono",monospace;font-size:1.6rem;font-weight:700'>R²={r2}</div>
+  <div style='color:#8A9BB8;font-size:0.72rem'>r={d["r"]} · n={d["n"]}</div>
+  <div style='color:{gcolor};font-size:0.78rem;font-weight:600;margin-top:4px'>{grade}</div>
+</div>""", unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        # ── Scatter Plots: Actual vs Predicted ──
+        st.markdown("#### 🔵 Correlation Scatter Plot (Actual vs Predicted)")
+        st.caption("Titik biru = data ground truth · Garis merah = regresi terbaik · Garis putus-putus = ideal (y=x)")
+
+        n_plots = len(avail_targets)
+        ncols   = min(n_plots, 3)
+        nrows   = (n_plots + ncols - 1) // ncols
+
+        fig_c, axes_c = plt.subplots(nrows, ncols, figsize=(6 * ncols, 5 * nrows))
+        fig_c.patch.set_facecolor("#0A1628")
+        axes_c = np.array(axes_c).flatten()
+
+        for idx, target in enumerate(avail_targets):
+            ax  = axes_c[idx]
+            d   = accuracy_data[target]
+            actual    = np.array(d["actual"])
+            predicted = np.array(d["predicted"])
+            unit      = UNITS[target]
+
+            ax.set_facecolor("#132035")
+            for sp in ax.spines.values(): sp.set_edgecolor("#1E3A5F")
+            ax.tick_params(colors="#8A9BB8", labelsize=8)
+
+            # Scatter
+            ax.scatter(actual, predicted, color="#0E9E8E", alpha=0.65, s=55, zorder=3, label="Data")
+
+            # Regression line (polyfit)
+            if len(actual) > 1:
+                m, b   = np.polyfit(actual, predicted, 1)
+                x_line = np.linspace(actual.min(), actual.max(), 100)
+                ax.plot(x_line, m * x_line + b, color="#E84C4C", lw=2,
+                        label=f"Regresi (R²={d['r2']})", zorder=4)
+
+            # Ideal line (y=x)
+            all_vals = np.concatenate([actual, predicted])
+            lo_v, hi_v = all_vals.min(), all_vals.max()
+            ax.plot([lo_v, hi_v], [lo_v, hi_v], color="#F4A623", lw=1.2,
+                    ls="--", alpha=0.7, label="Ideal (y=x)", zorder=2)
+
+            ax.set_xlabel(f"Actual {target} {unit}".strip(), color="#8A9BB8", fontsize=9)
+            ax.set_ylabel(f"Predicted {target} {unit}".strip(), color="#8A9BB8", fontsize=9)
+            ax.set_title(f"{target}  |  R²={d['r2']}  r={d['r']}",
+                         color="#0E9E8E", fontsize=10, fontweight="bold", pad=8)
+
+            # Stats annotation box
+            stats_txt = f"MAE  = {d['mae']}\nRMSE = {d['rmse']}\nn    = {d['n']}"
+            ax.text(0.04, 0.96, stats_txt, transform=ax.transAxes,
+                    color="#8A9BB8", fontsize=7.5, va="top",
+                    fontfamily="monospace",
+                    bbox=dict(boxstyle="round,pad=0.4", fc="#0A1628", ec="#1E3A5F", alpha=0.85))
+
+            ax.legend(fontsize=7, labelcolor="#F4F7FB",
+                      facecolor="#132035", edgecolor="#1E3A5F", loc="lower right")
+
+        # Hide unused axes
+        for j in range(len(avail_targets), len(axes_c)):
+            axes_c[j].set_visible(False)
+
+        plt.suptitle("AI Prediction Accuracy — Actual vs Predicted (Ground Truth)",
+                     color="#F4F7FB", fontsize=12, y=1.01)
+        plt.tight_layout()
+        st.pyplot(fig_c)
+        plt.close(fig_c)
+
+        st.markdown("---")
+
+        # ── Residual Plot ──────────────────────
+        st.markdown("#### 📉 Residual Plot (Error Analisis)")
+        st.caption("Residual = Actual − Predicted. Taburan di sekitar y=0 menunjukkan model tidak berat sebelah (unbiased).")
+
+        fig_r, axes_r = plt.subplots(1, len(avail_targets), figsize=(5 * len(avail_targets), 4))
+        fig_r.patch.set_facecolor("#0A1628")
+        if len(avail_targets) == 1: axes_r = [axes_r]
+
+        for idx, target in enumerate(avail_targets):
+            ax = axes_r[idx]
+            d  = accuracy_data[target]
+            actual    = np.array(d["actual"])
+            predicted = np.array(d["predicted"])
+            residuals = actual - predicted
+
+            ax.set_facecolor("#132035")
+            for sp in ax.spines.values(): sp.set_edgecolor("#1E3A5F")
+            ax.tick_params(colors="#8A9BB8", labelsize=8)
+
+            ax.scatter(predicted, residuals, color="#12C2B0", alpha=0.6, s=45)
+            ax.axhline(0, color="#E84C4C", lw=1.5, ls="--", alpha=0.8)
+            ax.axhline(np.std(residuals),  color="#F4A623", lw=1, ls=":", alpha=0.6)
+            ax.axhline(-np.std(residuals), color="#F4A623", lw=1, ls=":", alpha=0.6,
+                       label=f"±1 SD ({np.std(residuals):.3f})")
+
+            ax.set_xlabel(f"Predicted {target}", color="#8A9BB8", fontsize=8)
+            ax.set_ylabel("Residual", color="#8A9BB8", fontsize=8)
+            ax.set_title(f"Residual — {target}", color="#0E9E8E", fontsize=10, fontweight="bold")
+            ax.legend(fontsize=7, labelcolor="#F4F7FB", facecolor="#132035", edgecolor="#1E3A5F")
+
+        plt.tight_layout()
+        st.pyplot(fig_r)
+        plt.close(fig_r)
+
+        st.markdown("---")
+
+        # ── Metrics Table ──────────────────────
+        st.markdown("#### 📋 Jadual Metrik Ketepatan Lengkap")
+        rows = []
+        for t in TARGETS:
+            d = accuracy_data.get(t)
+            if d:
+                r2 = d["r2"]
+                if r2 >= 0.85:   interp = "✅ Sangat Baik"
+                elif r2 >= 0.70: interp = "🟡 Baik"
+                elif r2 >= 0.50: interp = "🟠 Sederhana"
+                else:            interp = "🔴 Lemah"
+                rows.append({"Parameter": t, "R² Score": r2, "Pearson r": d["r"],
+                             "MAE": d["mae"], "RMSE": d["rmse"],
+                             "Sampel (n)": d["n"], "Interpretasi": interp})
+            else:
+                rows.append({"Parameter": t, "R² Score": "—", "Pearson r": "—",
+                             "MAE": "—", "RMSE": "—",
+                             "Sampel (n)": "< 5", "Interpretasi": "⚠️ Formula Fallback"})
+
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+        st.markdown("""
+<div class="section-card" style="margin-top:12px">
+<b style="color:#0E9E8E">Panduan Interpretasi:</b>
+<span style="color:#8A9BB8">
+&nbsp;· R² ≥ 0.85 = Sangat Baik &nbsp;· R² 0.70–0.85 = Baik &nbsp;· R² 0.50–0.70 = Sederhana &nbsp;· R² &lt; 0.50 = Lemah<br>
+&nbsp;· MAE = purata ralat mutlak &nbsp;· RMSE = punca min ralat kuasa dua &nbsp;· r = korelasi Pearson
+</span>
+</div>""", unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════
+# TAB 5 — FORMULA VALIDATION
 # ══════════════════════════════════════════════
 with tab_formula:
     st.markdown("### 🧮 Pengesahan Formula Fisiologi")
@@ -628,7 +805,7 @@ Jika Ground Truth &lt; 5 baris:<br>
 </div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════
-# TAB 5 — EXPORT
+# TAB 6 — EXPORT
 # ══════════════════════════════════════════════
 with tab_export:
     st.markdown("### ⬇️ Muat Turun Keputusan")
