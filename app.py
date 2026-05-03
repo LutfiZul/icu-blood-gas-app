@@ -270,7 +270,22 @@ def train_and_predict(raw_bytes: bytes):
 
             ss_res = np.sum((actual - predicted) ** 2)
             ss_tot = np.sum((actual - actual.mean()) ** 2)
-            r2   = round(1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0, 4)
+            r2_raw = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+
+            # If R² is negative, ANN performed worse than mean baseline
+            # → discard ANN for this target, switch to formula fallback
+            if r2_raw < 0:
+                log_messages.append(f"⚠️ {target}: ANN R²={r2_raw:.4f} (negative) → Switching to Physiological Formula fallback.")
+                formula_preds_all = apply_formula_fallback(df, target, available_features)
+                nan_mask = df[target].isna()
+                if nan_mask.any():
+                    df.loc[nan_mask, target] = formula_preds_all[nan_mask]
+                importances[target] = {f: 1/len(available_features) for f in available_features}
+                r2_scores[target]   = None
+                accuracy_data[target] = None
+                continue
+
+            r2   = round(max(r2_raw, 0.0), 4)
             mae  = round(float(np.mean(np.abs(actual - predicted))), 4)
             rmse = round(float(np.sqrt(np.mean((actual - predicted) ** 2))), 4)
             # Pearson r
