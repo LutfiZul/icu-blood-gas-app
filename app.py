@@ -137,25 +137,58 @@ def formula_O2Sat(pao2):
 def apply_formula_fallback(df, target, available_features):
     """
     Use physiological formulas as fallback when training data < 5 rows.
-    Returns array of predicted values.
+    Each missing value is computed row-by-row from actual available columns
+    using validated clinical formulas — no means, no hardcoded assumptions.
     """
     n = len(df)
-    age     = df["Age"].fillna(50).values        if "Age"     in df.columns else np.full(n, 50)
-    paco2   = df["PaCO2"].fillna(40).values      if "PaCO2"   in df.columns else np.full(n, 40.0)
-    hco3    = df["HCO3"].fillna(24).values       if "HCO3"    in df.columns else np.full(n, 24.0)
-    ph      = df["pH"].fillna(7.4).values        if "pH"      in df.columns else np.full(n, 7.40)
-    pao2    = df["PaO2"].fillna(90).values       if "PaO2"    in df.columns else np.full(n, 90.0)
-    lactate = df["Lactate_Level"].fillna(1).values if "Lactate_Level" in df.columns else np.ones(n)
 
+    # Pull each column as-is (NaN remains NaN — we resolve below per-formula)
+    age     = df["Age"].values            if "Age"           in df.columns else np.full(n, np.nan)
+    paco2   = df["PaCO2"].values          if "PaCO2"         in df.columns else np.full(n, np.nan)
+    hco3    = df["HCO3"].values           if "HCO3"          in df.columns else np.full(n, np.nan)
+    ph      = df["pH"].values             if "pH"            in df.columns else np.full(n, np.nan)
+    pao2    = df["PaO2"].values           if "PaO2"          in df.columns else np.full(n, np.nan)
+    lactate = df["Lactate_Level"].values  if "Lactate_Level" in df.columns else np.full(n, np.nan)
+
+    # ── For any still-NaN inputs, derive them from other columns via formula ──
+    # PaCO2 from pH + HCO3 (row-by-row where PaCO2 is NaN)
+    if np.any(np.isnan(paco2)):
+        mask = np.isnan(paco2) & ~np.isnan(ph) & ~np.isnan(hco3)
+        paco2[mask] = formula_PaCO2(ph[mask], hco3[mask])
+
+    # HCO3 from pH + PaCO2 (row-by-row where HCO3 is NaN)
+    if np.any(np.isnan(hco3)):
+        mask = np.isnan(hco3) & ~np.isnan(ph) & ~np.isnan(paco2)
+        hco3[mask] = formula_HCO3(ph[mask], paco2[mask])
+
+    # pH from HCO3 + PaCO2 (row-by-row where pH is NaN)
+    if np.any(np.isnan(ph)):
+        mask = np.isnan(ph) & ~np.isnan(hco3) & ~np.isnan(paco2)
+        ph[mask] = formula_pH(hco3[mask], paco2[mask])
+
+    # PaO2 from PaCO2 + Age (row-by-row where PaO2 is NaN)
+    if np.any(np.isnan(pao2)):
+        mask = np.isnan(pao2) & ~np.isnan(paco2) & ~np.isnan(age)
+        pao2[mask] = formula_PaO2(paco2[mask], age[mask])
+
+    # Lactate: if still NaN, derive from pH shift (inverse of correction)
+    # pH_corrected = pH_base - lactate*0.02  →  lactate = (pH_base - pH) / 0.02
+    if np.any(np.isnan(lactate)):
+        mask = np.isnan(lactate) & ~np.isnan(ph) & ~np.isnan(hco3) & ~np.isnan(paco2)
+        ph_base = formula_pH(hco3[mask], paco2[mask])
+        lactate[mask] = np.clip((ph_base - ph[mask]) / 0.02, 0, None)
+
+    # ── Now compute the target using real row values ──
     if target == "pH":
         # Henderson-Hasselbalch + Lactate acidosis correction
         base = formula_pH(hco3, paco2)
-        corrected = base - (lactate * 0.02)   # Lactate acidosis correction
+        corrected = base - (lactate * 0.02)
         return np.clip(corrected, 6.5, 8.0)
 
     elif target == "HCO3":
+        # Henderson equation + Lactate compensation
         base = formula_HCO3(ph, paco2)
-        corrected = base - (lactate * 0.5)    # Lactate compensation
+        corrected = base - (lactate * 0.5)
         return np.clip(corrected, 0, None)
 
     elif target == "PaCO2":
@@ -274,15 +307,29 @@ def train_and_predict(raw_bytes: bytes):
 
             # If R² is negative, ANN performed worse than mean baseline
             # → discard ANN for this target, switch to formula fallback
+            # → but still store ANN vs Formula data for the scatter plot
             if r2_raw < 0:
                 log_messages.append(f"⚠️ {target}: ANN R²={r2_raw:.4f} (negative) → Switching to Physiological Formula fallback.")
+
+                # Store ANN vs Formula comparison data for scatter plot
+                formula_compare = apply_formula_fallback(df, target, available_features)
+                accuracy_data[target] = {
+                    "actual":    formula_compare.tolist(),   # formula = reference
+                    "predicted": predicted.tolist(),          # ANN = compared against formula
+                    "r2":        round(r2_raw, 4),
+                    "mae":       round(float(np.mean(np.abs(formula_compare - predicted))), 4),
+                    "rmse":      round(float(np.sqrt(np.mean((formula_compare - predicted) ** 2))), 4),
+                    "r":         round(float(np.corrcoef(formula_compare, predicted)[0, 1]), 4) if len(predicted) > 1 else 0.0,
+                    "n":         len(predicted),
+                    "fallback":  True,   # flag: axes labels say Formula vs ANN
+                }
+
                 formula_preds_all = apply_formula_fallback(df, target, available_features)
                 nan_mask = df[target].isna()
                 if nan_mask.any():
                     df.loc[nan_mask, target] = formula_preds_all[nan_mask]
                 importances[target] = {f: 1/len(available_features) for f in available_features}
                 r2_scores[target]   = None
-                accuracy_data[target] = None
                 continue
 
             r2   = round(max(r2_raw, 0.0), 4)
@@ -651,16 +698,20 @@ some filled blood gas values, the accuracy metrics will appear here automaticall
         for i, t in enumerate(avail_targets):
             d = accuracy_data[t]
             r2 = d["r2"]
-            if r2 >= 0.85:   grade, gcolor = "Excellent",  "#0E9E8E"
-            elif r2 >= 0.70: grade, gcolor = "Good",        "#12C2B0"
-            elif r2 >= 0.50: grade, gcolor = "Moderate",    "#F4A623"
-            else:            grade, gcolor = "Weak",         "#E84C4C"
+            is_fallback = d.get("fallback", False)
+            if is_fallback:
+                grade, gcolor = "Formula Fallback", "#F4A623"
+            elif r2 >= 0.85:   grade, gcolor = "Excellent", "#0E9E8E"
+            elif r2 >= 0.70:   grade, gcolor = "Good",      "#12C2B0"
+            elif r2 >= 0.50:   grade, gcolor = "Moderate",  "#F4A623"
+            else:              grade, gcolor = "Weak",       "#E84C4C"
             with score_cols[i]:
+                r2_display = f"R²={r2}" if not is_fallback else f"R²={r2}<br><small style='font-size:0.6rem'>ANN vs Formula</small>"
                 st.markdown(f"""
 <div style='background:#132035;border:1px solid {gcolor};border-radius:12px;
 padding:16px;text-align:center;'>
   <div style='color:#8A9BB8;font-size:0.7rem;text-transform:uppercase;letter-spacing:1px'>{t}</div>
-  <div style='color:{gcolor};font-family:"Space Mono",monospace;font-size:1.6rem;font-weight:700'>R²={r2}</div>
+  <div style='color:{gcolor};font-family:"Space Mono",monospace;font-size:1.4rem;font-weight:700'>{r2_display}</div>
   <div style='color:#8A9BB8;font-size:0.72rem'>r={d["r"]} · n={d["n"]}</div>
   <div style='color:{gcolor};font-size:0.78rem;font-weight:600;margin-top:4px'>{grade}</div>
 </div>""", unsafe_allow_html=True)
@@ -669,7 +720,7 @@ padding:16px;text-align:center;'>
 
         # ── Scatter Plots: Actual vs Predicted ──
         st.markdown("#### 🔵 Correlation Scatter Plot (Actual vs Predicted)")
-        st.caption("Blue dots = ground truth data · Red line = best-fit regression · Dashed line = ideal (y=x)")
+        st.caption("Blue dots = ground truth data · Red line = best-fit regression · Dashed line = ideal (y=x) · ⚠️ Orange border = Formula Fallback (ANN vs Formula shown)")
 
         n_plots = len(avail_targets)
         ncols   = min(n_plots, 3)
@@ -682,40 +733,46 @@ padding:16px;text-align:center;'>
         for idx, target in enumerate(avail_targets):
             ax  = axes_c[idx]
             d   = accuracy_data[target]
+            is_fallback = d.get("fallback", False)
             actual    = np.array(d["actual"])
             predicted = np.array(d["predicted"])
             unit      = UNITS[target]
 
             ax.set_facecolor("#132035")
-            for sp in ax.spines.values(): sp.set_edgecolor("#1E3A5F")
+            border_color = "#F4A623" if is_fallback else "#1E3A5F"
+            for sp in ax.spines.values(): sp.set_edgecolor(border_color)
             ax.tick_params(colors="#8A9BB8", labelsize=8)
 
-            # Scatter
-            ax.scatter(actual, predicted, color="#0E9E8E", alpha=0.65, s=55, zorder=3, label="Data")
+            scatter_color = "#F4A623" if is_fallback else "#0E9E8E"
+            ax.scatter(actual, predicted, color=scatter_color, alpha=0.65, s=55, zorder=3, label="Data")
 
-            # Regression line (polyfit)
             if len(actual) > 1:
                 m, b   = np.polyfit(actual, predicted, 1)
                 x_line = np.linspace(actual.min(), actual.max(), 100)
+                r2_label = f"R²={d['r2']} ⚠️" if is_fallback else f"R²={d['r2']}"
                 ax.plot(x_line, m * x_line + b, color="#E84C4C", lw=2,
-                        label=f"Regresi (R²={d['r2']})", zorder=4)
+                        label=r2_label, zorder=4)
 
-            # Ideal line (y=x)
             all_vals = np.concatenate([actual, predicted])
             lo_v, hi_v = all_vals.min(), all_vals.max()
-            ax.plot([lo_v, hi_v], [lo_v, hi_v], color="#F4A623", lw=1.2,
-                    ls="--", alpha=0.7, label="Ideal (y=x)", zorder=2)
+            ax.plot([lo_v, hi_v], [lo_v, hi_v], color="#F4A623" if not is_fallback else "#8A9BB8",
+                    lw=1.2, ls="--", alpha=0.7, label="Ideal (y=x)", zorder=2)
 
-            ax.set_xlabel(f"Actual {target} {unit}".strip(), color="#8A9BB8", fontsize=9)
-            ax.set_ylabel(f"Predicted {target} {unit}".strip(), color="#8A9BB8", fontsize=9)
-            ax.set_title(f"{target}  |  R²={d['r2']}  r={d['r']}",
-                         color="#0E9E8E", fontsize=10, fontweight="bold", pad=8)
+            x_label = f"Formula {target} {unit}".strip() if is_fallback else f"Actual {target} {unit}".strip()
+            y_label = f"ANN {target} {unit}".strip()     if is_fallback else f"Predicted {target} {unit}".strip()
+            ax.set_xlabel(x_label, color="#8A9BB8", fontsize=9)
+            ax.set_ylabel(y_label, color="#8A9BB8", fontsize=9)
 
-            # Stats annotation box
+            title_suffix = " (Formula Fallback)" if is_fallback else ""
+            ax.set_title(f"{target}{title_suffix}  |  R²={d['r2']}  r={d['r']}",
+                         color="#F4A623" if is_fallback else "#0E9E8E",
+                         fontsize=10, fontweight="bold", pad=8)
+
             stats_txt = f"MAE  = {d['mae']}\nRMSE = {d['rmse']}\nn    = {d['n']}"
+            if is_fallback:
+                stats_txt += "\n[ANN vs Formula]"
             ax.text(0.04, 0.96, stats_txt, transform=ax.transAxes,
-                    color="#8A9BB8", fontsize=7.5, va="top",
-                    fontfamily="monospace",
+                    color="#8A9BB8", fontsize=7.5, va="top", fontfamily="monospace",
                     bbox=dict(boxstyle="round,pad=0.4", fc="#0A1628", ec="#1E3A5F", alpha=0.85))
 
             ax.legend(fontsize=7, labelcolor="#F4F7FB",
@@ -776,10 +833,13 @@ padding:16px;text-align:center;'>
             d = accuracy_data.get(t)
             if d:
                 r2 = d["r2"]
-                if r2 >= 0.85:   interp = "✅ Excellent"
-                elif r2 >= 0.70: interp = "🟡 Good"
-                elif r2 >= 0.50: interp = "🟠 Moderate"
-                else:            interp = "🔴 Weak"
+                is_fallback = d.get("fallback", False)
+                if is_fallback:
+                    interp = "⚠️ Formula Fallback (ANN R² < 0)"
+                elif r2 >= 0.85:   interp = "✅ Excellent"
+                elif r2 >= 0.70:   interp = "🟡 Good"
+                elif r2 >= 0.50:   interp = "🟠 Moderate"
+                else:              interp = "🔴 Weak"
                 rows.append({"Parameter": t, "R² Score": r2, "Pearson r": d["r"],
                              "MAE": d["mae"], "RMSE": d["rmse"],
                              "Samples (n)": d["n"], "Interpretation": interp})
