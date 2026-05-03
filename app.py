@@ -111,32 +111,32 @@ def formula_pH(hco3, paco2):
         return np.full_like(hco3, 7.40)
 
 def formula_HCO3(pH, paco2):
-    """HCO3 dari pH + PaCO2"""
+    """HCO3 from pH + PaCO2"""
     val = 0.0307 * paco2 * (10 ** (pH - 6.1))
     return np.clip(val, 0, None)
 
 def formula_PaCO2(pH, hco3):
-    """PaCO2 dari pH + HCO3"""
+    """PaCO2 from pH + HCO3"""
     denom = 0.0307 * (10 ** (pH - 6.1))
     val = hco3 / np.where(denom == 0, 1e-9, denom)
     return np.clip(val, 0, None)
 
 def formula_PaO2(paco2, age, fio2=0.21):
-    """Alveolar Gas Equation → PaO2 anggaran"""
+    """Alveolar Gas Equation → estimated PaO2"""
     pa_o2 = fio2 * (760 - 47) - (paco2 / 0.8)
-    aa_gradient = 2.5 + 0.21 * np.clip(age, 20, 90)   # A-a gradient meningkat dgn umur
+    aa_gradient = 2.5 + 0.21 * np.clip(age, 20, 90)   # A-a gradient increases with age
     pa_o2_art = pa_o2 - aa_gradient
     return np.clip(pa_o2_art, 0, None)
 
 def formula_O2Sat(pao2):
-    """Hill / ODC equation — SaO2 dari PaO2"""
+    """Hill / ODC equation — SaO2 from PaO2"""
     n, p50 = 2.7, 26.8
     sat = (pao2**n / (pao2**n + p50**n)) * 100
     return np.clip(sat, 0, 100)
 
 def apply_formula_fallback(df, target, available_features):
     """
-    Guna formula fisiologi sebagai fallback jika data latihan < 5.
+    Use physiological formulas as fallback when training data < 5 rows.
     Returns array of predicted values.
     """
     n = len(df)
@@ -148,7 +148,7 @@ def apply_formula_fallback(df, target, available_features):
     lactate = df["Lactate_Level"].fillna(1).values if "Lactate_Level" in df.columns else np.ones(n)
 
     if target == "pH":
-        # Henderson-Hasselbalch + Lactate koreksi
+        # Henderson-Hasselbalch + Lactate acidosis correction
         base = formula_pH(hco3, paco2)
         corrected = base - (lactate * 0.02)   # Lactate acidosis correction
         return np.clip(corrected, 6.5, 8.0)
@@ -323,7 +323,7 @@ def train_and_predict(raw_bytes: bytes):
     return result_df, importances, log_messages, r2_scores, accuracy_data
 
 # ─────────────────────────────────────────────
-# SAMPLE DATA GENERATOR  (≥ 1.2 KB)
+# SAMPLE DATA GENERATOR
 # ─────────────────────────────────────────────
 def generate_sample_csv() -> bytes:
     np.random.seed(42)
@@ -350,7 +350,7 @@ def generate_sample_csv() -> bytes:
     buf = io.StringIO()
     df.to_csv(buf, index=False)
     csv_bytes = buf.getvalue().encode()
-    # Pastikan ≥ 1.2 KB
+    # Pad to ensure minimum viable size if needed
     while len(csv_bytes) < MIN_FILE_BYTES:
         df = pd.concat([df, df.sample(5, replace=True)], ignore_index=True)
         buf = io.StringIO(); df.to_csv(buf, index=False)
@@ -755,32 +755,32 @@ padding:16px;text-align:center;'>
         st.markdown("---")
 
         # ── Metrics Table ──────────────────────
-        st.markdown("#### 📋 Jadual Metrik Ketepatan Lengkap")
+        st.markdown("#### 📋 Full Accuracy Metrics Table")
         rows = []
         for t in TARGETS:
             d = accuracy_data.get(t)
             if d:
                 r2 = d["r2"]
-                if r2 >= 0.85:   interp = "✅ Sangat Baik"
-                elif r2 >= 0.70: interp = "🟡 Baik"
-                elif r2 >= 0.50: interp = "🟠 Sederhana"
-                else:            interp = "🔴 Lemah"
+                if r2 >= 0.85:   interp = "✅ Excellent"
+                elif r2 >= 0.70: interp = "🟡 Good"
+                elif r2 >= 0.50: interp = "🟠 Moderate"
+                else:            interp = "🔴 Weak"
                 rows.append({"Parameter": t, "R² Score": r2, "Pearson r": d["r"],
                              "MAE": d["mae"], "RMSE": d["rmse"],
-                             "Sampel (n)": d["n"], "Interpretasi": interp})
+                             "Samples (n)": d["n"], "Interpretation": interp})
             else:
                 rows.append({"Parameter": t, "R² Score": "—", "Pearson r": "—",
                              "MAE": "—", "RMSE": "—",
-                             "Sampel (n)": "< 5", "Interpretasi": "⚠️ Formula Fallback"})
+                             "Samples (n)": "< 5", "Interpretation": "⚠️ Formula Fallback"})
 
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
         st.markdown("""
 <div class="section-card" style="margin-top:12px">
-<b style="color:#0E9E8E">Panduan Interpretasi:</b>
+<b style="color:#0E9E8E">Interpretation Guide:</b>
 <span style="color:#8A9BB8">
-&nbsp;· R² ≥ 0.85 = Sangat Baik &nbsp;· R² 0.70–0.85 = Baik &nbsp;· R² 0.50–0.70 = Sederhana &nbsp;· R² &lt; 0.50 = Lemah<br>
-&nbsp;· MAE = purata ralat mutlak &nbsp;· RMSE = punca min ralat kuasa dua &nbsp;· r = korelasi Pearson
+&nbsp;· R² ≥ 0.85 = Excellent &nbsp;· R² 0.70–0.85 = Good &nbsp;· R² 0.50–0.70 = Moderate &nbsp;· R² &lt; 0.50 = Weak<br>
+&nbsp;· MAE = mean absolute error &nbsp;· RMSE = root mean squared error &nbsp;· r = Pearson correlation
 </span>
 </div>""", unsafe_allow_html=True)
 
@@ -788,8 +788,8 @@ padding:16px;text-align:center;'>
 # TAB 5 — FORMULA VALIDATION
 # ══════════════════════════════════════════════
 with tab_formula:
-    st.markdown("### 🧮 Pengesahan Formula Fisiologi")
-    st.markdown("Tab ini membandingkan ramalan ANN vs formula fisiologi yang betul secara klinikal.")
+    st.markdown("### 🧮 Physiological Formula Validation")
+    st.markdown("This tab compares ANN predictions against clinically validated physiological formulas.")
 
     col_f1, col_f2 = st.columns(2, gap="large")
 
@@ -798,7 +798,7 @@ with tab_formula:
         st.markdown("""
 <div class="formula-box">
 pH = 6.1 + log₁₀( HCO₃ / (0.0307 × PaCO₂) )<br><br>
-Koreksi Lactate Acidosis:<br>
+Lactate Acidosis Correction:<br>
 pH_adjusted = pH − (Lactate × 0.02)
 </div>""", unsafe_allow_html=True)
 
@@ -815,7 +815,7 @@ PaO₂ = PAO₂ − A-a gradient
         st.markdown("""
 <div class="formula-box">
 SaO₂ = PaO₂²·⁷ / (PaO₂²·⁷ + 26.8²·⁷) × 100<br><br>
-n = 2.7 (koefisien Hill)<br>
+n = 2.7 (Hill coefficient)<br>
 P50 = 26.8 mmHg (normal)
 </div>""", unsafe_allow_html=True)
 
@@ -823,12 +823,12 @@ P50 = 26.8 mmHg (normal)
         st.markdown("""
 <div class="formula-box">
 HCO₃ = 0.0307 × PaCO₂ × 10^(pH − 6.1)<br><br>
-Koreksi Lactate:<br>
+Lactate Correction:<br>
 HCO₃_adjusted = HCO₃ − (Lactate × 0.5)
 </div>""", unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("#### 📊 R² Score — Ketepatan Model ANN")
+    st.markdown("#### 📊 R² Score — ANN Model Accuracy")
     r2_data = {t: r2_scores.get(t, "Formula Fallback") for t in TARGETS}
     r2_cols = st.columns(5)
     for i, target in enumerate(TARGETS):
@@ -854,22 +854,22 @@ HCO₃_adjusted = HCO₃ − (Lactate × 0.5)
     st.markdown("#### 🔀 Blend Logic: ANN + Formula")
     st.markdown("""
 <div class="formula-box">
-Jika Ground Truth ≥ 5 baris:<br>
+If Ground Truth ≥ 5 rows:<br>
 &nbsp;&nbsp;Final Prediction = 0.70 × ANN_Prediction + 0.30 × Formula_Prediction<br><br>
-Jika Ground Truth &lt; 5 baris:<br>
-&nbsp;&nbsp;Final Prediction = Formula Fisiologi (100%)
+If Ground Truth &lt; 5 rows:<br>
+&nbsp;&nbsp;Final Prediction = Physiological Formula (100%)
 </div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════
 # TAB 6 — EXPORT
 # ══════════════════════════════════════════════
 with tab_export:
-    st.markdown("### ⬇️ Muat Turun Keputusan")
+    st.markdown("### ⬇️ Download Results")
     st.markdown("""
 <div class="section-card">
-<p style="color:#8A9BB8">Fail CSV mengandungi data asal, semua features yang diproses,
-5 kolum ramalan AI (<code>AI_pH</code>, <code>AI_PaCO2</code>, <code>AI_PaO2</code>,
-<code>AI_O2_Saturation</code>, <code>AI_HCO3</code>), dan label klinikal status.</p>
+<p style="color:#8A9BB8">The exported CSV contains the original patient data, all processed features,
+5 AI-predicted blood gas columns (<code>AI_pH</code>, <code>AI_PaCO2</code>, <code>AI_PaO2</code>,
+<code>AI_O2_Saturation</code>, <code>AI_HCO3</code>), and the clinical status label.</p>
 </div>""", unsafe_allow_html=True)
 
     export_df = result_df.copy()
@@ -883,7 +883,7 @@ with tab_export:
             data=export_df.round(4).to_csv(index=False).encode(),
             file_name="icu_blood_gas_predictions.csv", mime="text/csv")
     with col_b:
-        st.metric("Jumlah Pesakit", len(export_df))
+        st.metric("Total Patients", len(export_df))
 
-    st.markdown("#### Preview (10 baris pertama)")
+    st.markdown("#### Preview (first 10 rows)")
     st.dataframe(export_df.head(10).round(3), use_container_width=True, hide_index=True)
