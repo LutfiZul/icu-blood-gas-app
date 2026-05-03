@@ -236,7 +236,7 @@ def train_and_predict(raw_bytes: bytes):
 
         if len(df_train) < 5:
             # ── FALLBACK: Physiological Formula ──
-            log_messages.append(f"⚠️ {target}: Data latihan terhad ({len(df_train)} baris) → Formula Fisiologi digunakan.")
+            log_messages.append(f"⚠️ {target}: Limited training data ({len(df_train)} rows) → Physiological Formula used.")
             formula_preds = apply_formula_fallback(df, target, available_features)
             nan_mask = df[target].isna()
             if nan_mask.any():
@@ -245,7 +245,7 @@ def train_and_predict(raw_bytes: bytes):
             r2_scores[target]   = None
             accuracy_data[target] = None
         else:
-            log_messages.append(f"✅ {target}: {len(df_train)} rekod ground truth → ANN (12,12) dilatih.")
+            log_messages.append(f"✅ {target}: {len(df_train)} ground truth records → ANN (12,12) trained.")
 
             X_train = df_train[available_features]
             y_train = df_train[target]
@@ -327,7 +327,7 @@ def train_and_predict(raw_bytes: bytes):
 # ─────────────────────────────────────────────
 def generate_sample_csv() -> bytes:
     np.random.seed(42)
-    n = 60  # 60 pesakit supaya fail > 1.2 KB
+    n = 60  # 60 patients for adequate sample size
     data = {
         "Patient_ID":             [f"FP{2000+i}" for i in range(n)],
         "Age":                    np.random.randint(25, 85, n).astype(float),
@@ -339,7 +339,7 @@ def generate_sample_csv() -> bytes:
         "Lactate_Level":          np.round(np.random.uniform(0.5, 9.0, n), 2),
         "Mechanical_Ventilation": np.random.choice(["Yes","No"], n),
         "Blood_Pressure":         [f"{np.random.randint(88,172)}/{np.random.randint(50,108)}" for _ in range(n)],
-        # Blood gas targets — 35% sengaja dikosongkan untuk AI predict
+        # Blood gas targets — 35% intentionally left blank for AI to predict
         "pH":            np.where(np.random.rand(n)<0.35, np.nan, np.round(np.random.uniform(7.18,7.58,n),2)),
         "PaCO2":         np.where(np.random.rand(n)<0.35, np.nan, np.round(np.random.uniform(26,60,n),1)),
         "PaO2":          np.where(np.random.rand(n)<0.35, np.nan, np.round(np.random.uniform(52,118,n),1)),
@@ -364,13 +364,17 @@ with st.sidebar:
     st.markdown("## 🩺 ICU Blood Gas\n**AI Assistant**")
     st.markdown("---")
     uploaded = st.file_uploader("Upload Patient CSV", type=["csv"],
-        help="CSV mesti mengandungi vital signs. Blood_Pressure format: '120/80'.")
+        help="CSV must include vital signs columns. Blood_Pressure format: '120/80'.")
 
     if uploaded:
-        st.success(f"✅ Fail diterima ({uploaded.size/1024:.1f} KB)")
+        if uploaded.size < 205:
+            st.error(f"❌ File too small ({uploaded.size} bytes). Minimum 0.2 KB required.")
+            uploaded = None
+        else:
+            st.success(f"✅ File received ({uploaded.size/1024:.1f} KB)")
 
     st.markdown("---")
-    st.markdown("### 🧮 Formula Yang Digunakan")
+    st.markdown("### 🧮 Formulas Used")
     st.markdown("""
 <div class="formula-box">
 pH = 6.1 + log₁₀(HCO₃ / 0.0307×PaCO₂)<br><br>
@@ -380,7 +384,7 @@ SaO₂ = PaO₂²·⁷ / (PaO₂²·⁷ + 26.8²·⁷)
 </div>
 """, unsafe_allow_html=True)
     st.markdown("---")
-    st.caption("AI predictions: 70% ANN + 30% Formula Fisiologi. Decision-support sahaja.")
+    st.caption("AI predictions: 70% ANN + 30% Physiological Formula. For decision-support only.")
 
 # ─────────────────────────────────────────────
 # BANNER
@@ -396,7 +400,7 @@ st.markdown("""
 # MAIN FLOW
 # ─────────────────────────────────────────────
 if uploaded is None:
-    st.info("👈  Muat naik CSV di sidebar, atau cuba dengan data contoh di bawah.")
+    st.info("👈  Upload a CSV in the sidebar, or try the sample dataset below.")
     col_demo, _ = st.columns([1, 3])
     with col_demo:
         if st.button("▶  Load Sample Dataset"):
@@ -409,11 +413,11 @@ else:
 if raw_bytes is None:
     st.stop()
 
-with st.spinner("🧠  Melatih ANN & mengira blood gas..."):
+with st.spinner("🧠  Training ANN & predicting blood gas values..."):
     result_df, importances, ai_logs, r2_scores, accuracy_data = train_and_predict(raw_bytes)
     processed_df = load_and_process(raw_bytes)
 
-st.success(f"✅  Selesai — **{len(result_df)} pesakit** diproses.")
+st.success(f"✅  Complete — **{len(result_df)} patients** processed.")
 
 with st.expander("🔬 AI Engine Log", expanded=False):
     for msg in ai_logs:
@@ -425,7 +429,7 @@ with st.expander("🔬 AI Engine Log", expanded=False):
 # ─────────────────────────────────────────────
 tab_dash, tab_data, tab_viz, tab_accuracy, tab_formula, tab_export = st.tabs([
     "🏥 Patient Dashboard", "📋 All Patients", "📊 Analytics",
-    "🎯 Ketepatan Prediksi", "🧮 Formula Validation", "⬇️ Export"
+    "🎯 Prediction Accuracy", "🧮 Formula Validation", "⬇️ Export"
 ])
 
 # ══════════════════════════════════════════════
@@ -434,7 +438,7 @@ tab_dash, tab_data, tab_viz, tab_accuracy, tab_formula, tab_export = st.tabs([
 with tab_dash:
     st.markdown("### 🔍 Patient Lookup")
     patient_ids = result_df["Patient_ID"].astype(str).tolist() if "Patient_ID" in result_df.columns else result_df.index.astype(str).tolist()
-    selected_id = st.selectbox("Pilih ID Pesakit", patient_ids)
+    selected_id = st.selectbox("Select Patient ID", patient_ids)
 
     if "Patient_ID" in result_df.columns:
         row = result_df[result_df["Patient_ID"].astype(str) == selected_id].iloc[0]
@@ -445,12 +449,12 @@ with tab_dash:
     ph_pred = row.get("AI_pH", np.nan)
     status  = ph_status(ph_pred)
     st.markdown(
-        f"**Klinikal Status:** {status_badge_html(status)}&nbsp;&nbsp;"
-        f"<span style='color:#8A9BB8;font-size:0.85rem'>(berdasarkan pH yang diramal)</span>",
+        f"**Clinical Status:** {status_badge_html(status)}&nbsp;&nbsp;"
+        f"<span style='color:#8A9BB8;font-size:0.85rem'>(based on predicted pH)</span>",
         unsafe_allow_html=True)
     st.markdown("")
 
-    st.markdown("#### 🩸 Keputusan Blood Gas (AI Predicted)")
+    st.markdown("#### 🩸 Predicted Arterial Blood Gas Results")
     cols = st.columns(5)
     metric_icons = {"pH":"⚗","PaCO2":"💨","PaO2":"🫁","O2_Saturation":"💉","HCO3":"⚡"}
     for i, target in enumerate(TARGETS):
@@ -465,7 +469,7 @@ with tab_dash:
             )
 
     st.markdown("---")
-    st.markdown("#### 📟 Vital Signs Pesakit")
+    st.markdown("#### 📟 Patient Vital Signs")
     vitals_cols = [c for c in result_df.columns if c not in TARGETS+[f"AI_{t}" for t in TARGETS]+["Patient_ID"]]
     st.dataframe(pd.DataFrame({c:[row.get(c,"—")] for c in vitals_cols}).round(2), use_container_width=True, hide_index=True)
 
@@ -494,14 +498,14 @@ with tab_dash:
 # TAB 2 — ALL PATIENTS
 # ══════════════════════════════════════════════
 with tab_data:
-    st.markdown("### 📋 Rekod Penuh Pesakit + Ramalan AI")
+    st.markdown("### 📋 Full Patient Records with AI Predictions")
     ai_cols = [f"AI_{t}" for t in TARGETS]
     other_cols = [c for c in result_df.columns if c not in ai_cols]
     display_df = result_df[other_cols + ai_cols].copy()
     display_df["Clinical_Status"] = display_df["AI_pH"].apply(
         lambda v: ph_status(v).upper() if not pd.isna(v) else "UNKNOWN")
     st.dataframe(display_df.round(3), use_container_width=True, height=480)
-    st.caption(f"Jumlah: {len(display_df)} pesakit · Kolum AI_ = ramalan model")
+    st.caption(f"Total: {len(display_df)} patients · AI_ columns = model predictions")
 
 # ══════════════════════════════════════════════
 # TAB 3 — ANALYTICS
@@ -525,7 +529,7 @@ with tab_viz:
 
     with col_r:
         st.markdown("#### 🎯 Feature Importance")
-        target_sel = st.selectbox("Pilih target", TARGETS, key="fi_target")
+        target_sel = st.selectbox("Select target", TARGETS, key="fi_target")
         imp_dict = importances.get(target_sel, {})
         if imp_dict:
             imp_s = pd.Series(imp_dict).sort_values(ascending=True)
@@ -546,7 +550,7 @@ with tab_viz:
             plt.tight_layout(); st.pyplot(fig_b); plt.close(fig_b)
 
     st.markdown("---")
-    st.markdown("#### 📊 Taburan Ramalan AI")
+    st.markdown("#### 📊 Distribution of AI Predictions")
     fig_d, axes_d = plt.subplots(1, 5, figsize=(16, 4))
     fig_d.patch.set_facecolor("#132035")
     for ax_d, target in zip(axes_d, TARGETS):
@@ -563,27 +567,79 @@ with tab_viz:
     plt.tight_layout(); st.pyplot(fig_d); plt.close(fig_d)
 
 # ══════════════════════════════════════════════
-# TAB 4 — KETEPATAN PREDIKSI (CORRELATION)
+# TAB 4 — PREDICTION ACCURACY (CORRELATION)
 # ══════════════════════════════════════════════
 with tab_accuracy:
-    st.markdown("### 🎯 Ketepatan Prediksi AI — Actual vs Predicted")
-    st.markdown("Graf korelasi ini menunjukkan sejauh mana ramalan AI sepadan dengan nilai sebenar (ground truth) dalam data latihan.")
+    st.markdown("### 🎯 AI Prediction Accuracy — Actual vs Predicted")
+    st.markdown("These correlation plots show how closely the AI predictions match the actual ground truth values in the training data.")
 
-    # ── Summary scorecard row ──────────────────
     avail_targets = [t for t in TARGETS if accuracy_data.get(t) is not None]
 
     if not avail_targets:
-        st.warning("Tiada data ground truth yang mencukupi untuk mengira ketepatan. Pastikan kolum blood gas ada nilai sebenar.")
+        st.info("ℹ️ All blood gas values in this CSV are empty (no ground truth) — the AI has predicted all of them using ANN + Physiological Formulas.")
+        st.markdown("#### 🔀 Comparison: ANN Prediction vs Physiological Formula")
+        st.caption("Since there are no actual values to compare against, this chart shows how closely the ANN predictions align with classical physiological formulas.")
+
+        ai_cols_exist = [t for t in TARGETS if f"AI_{t}" in result_df.columns]
+        if ai_cols_exist:
+            n_t = len(ai_cols_exist)
+            fig_fb, axes_fb = plt.subplots(1, n_t, figsize=(5 * n_t, 4))
+            fig_fb.patch.set_facecolor("#0A1628")
+            if n_t == 1: axes_fb = [axes_fb]
+
+            for idx, target in enumerate(ai_cols_exist):
+                ax = axes_fb[idx]
+                ax.set_facecolor("#132035")
+                for sp in ax.spines.values(): sp.set_edgecolor("#1E3A5F")
+                ax.tick_params(colors="#8A9BB8", labelsize=8)
+
+                ann_vals = result_df[f"AI_{target}"].dropna().values
+                proc_df_local = load_and_process(raw_bytes)
+                formula_vals = apply_formula_fallback(
+                    proc_df_local.reset_index(drop=True), target,
+                    [f for f in FEATURES if f in proc_df_local.columns]
+                )
+                min_len = min(len(ann_vals), len(formula_vals))
+                ann_vals     = ann_vals[:min_len]
+                formula_vals = formula_vals[:min_len]
+
+                ax.scatter(formula_vals, ann_vals, color="#0E9E8E", alpha=0.6, s=45)
+                lo_v = min(formula_vals.min(), ann_vals.min())
+                hi_v = max(formula_vals.max(), ann_vals.max())
+                ax.plot([lo_v, hi_v], [lo_v, hi_v], color="#F4A623", lw=1.5, ls="--", alpha=0.8, label="Ideal y=x")
+
+                if len(ann_vals) > 1:
+                    m, b = np.polyfit(formula_vals, ann_vals, 1)
+                    x_l  = np.linspace(lo_v, hi_v, 100)
+                    corr = np.corrcoef(formula_vals, ann_vals)[0, 1]
+                    ax.plot(x_l, m * x_l + b, color="#E84C4C", lw=1.8, label=f"r={corr:.3f}")
+
+                ax.set_xlabel(f"Formula {target}", color="#8A9BB8", fontsize=8)
+                ax.set_ylabel(f"ANN {target}", color="#8A9BB8", fontsize=8)
+                ax.set_title(target, color="#0E9E8E", fontsize=10, fontweight="bold")
+                ax.legend(fontsize=7, labelcolor="#F4F7FB", facecolor="#132035", edgecolor="#1E3A5F")
+
+            plt.suptitle("ANN Prediction vs Physiological Formula", color="#F4F7FB", fontsize=11, y=1.02)
+            plt.tight_layout()
+            st.pyplot(fig_fb)
+            plt.close(fig_fb)
+
+        st.markdown("""
+<div class="section-card">
+<b style="color:#F4A623">Why is there no R² score?</b><br>
+<span style="color:#8A9BB8">R² requires <i>actual</i> values to compare against predictions. If your CSV contains
+some filled blood gas values, the accuracy metrics will appear here automatically.</span>
+</div>""", unsafe_allow_html=True)
     else:
-        st.markdown("#### 📊 Ringkasan Metrik Ketepatan")
+        st.markdown("#### 📊 Accuracy Metrics Summary")
         score_cols = st.columns(len(avail_targets))
         for i, t in enumerate(avail_targets):
             d = accuracy_data[t]
             r2 = d["r2"]
-            if r2 >= 0.85:   grade, gcolor = "Sangat Baik",  "#0E9E8E"
-            elif r2 >= 0.70: grade, gcolor = "Baik",         "#12C2B0"
-            elif r2 >= 0.50: grade, gcolor = "Sederhana",    "#F4A623"
-            else:            grade, gcolor = "Lemah",         "#E84C4C"
+            if r2 >= 0.85:   grade, gcolor = "Excellent",  "#0E9E8E"
+            elif r2 >= 0.70: grade, gcolor = "Good",        "#12C2B0"
+            elif r2 >= 0.50: grade, gcolor = "Moderate",    "#F4A623"
+            else:            grade, gcolor = "Weak",         "#E84C4C"
             with score_cols[i]:
                 st.markdown(f"""
 <div style='background:#132035;border:1px solid {gcolor};border-radius:12px;
@@ -598,7 +654,7 @@ padding:16px;text-align:center;'>
 
         # ── Scatter Plots: Actual vs Predicted ──
         st.markdown("#### 🔵 Correlation Scatter Plot (Actual vs Predicted)")
-        st.caption("Titik biru = data ground truth · Garis merah = regresi terbaik · Garis putus-putus = ideal (y=x)")
+        st.caption("Blue dots = ground truth data · Red line = best-fit regression · Dashed line = ideal (y=x)")
 
         n_plots = len(avail_targets)
         ncols   = min(n_plots, 3)
@@ -663,8 +719,8 @@ padding:16px;text-align:center;'>
         st.markdown("---")
 
         # ── Residual Plot ──────────────────────
-        st.markdown("#### 📉 Residual Plot (Error Analisis)")
-        st.caption("Residual = Actual − Predicted. Taburan di sekitar y=0 menunjukkan model tidak berat sebelah (unbiased).")
+        st.markdown("#### 📉 Residual Plot (Error Analysis)")
+        st.caption("Residual = Actual − Predicted. Points scattered around y=0 indicate an unbiased model.")
 
         fig_r, axes_r = plt.subplots(1, len(avail_targets), figsize=(5 * len(avail_targets), 4))
         fig_r.patch.set_facecolor("#0A1628")
