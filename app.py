@@ -13,7 +13,6 @@ st.set_page_config(
 )
 
 # Rekaan CSS Khas Gred Klinikal (Warna Biru Tua Korporat UiTM)
-# Pembetulan Parameter Keselamatan Menggunakan unsafe_allow_html=True
 st.markdown("""
     <style>
     .header-box {
@@ -37,13 +36,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Header Utama Dashboard
-# Header Utama Dashboard
 st.markdown("""
     <div class="header-box">
         <div class="main-title">🩺 CLINICAL DECISION SUPPORT SYSTEM (CDSS) DASHBOARD</div>
         <div class="sub-title">Faculty of Electrical Engineering, UiTM Pasir Gudang | FYP1 Preliminary Framework</div>
     </div>
-""", unsafe_allow_html=True) # <-- DITUKAR KEPADA unsafe_allow_html=True
+""", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
 # 2. SIDEBAR KAWALAN INPUT: ELEMEN AUTOMASI (AUTOMATION ELEMENT)
@@ -63,7 +61,6 @@ st.sidebar.info("**Enjin Inferens AI:** Aktif 🟢\n\n**Paparan:** Dioptimumkan 
 # ------------------------------------------------------------------
 # 3. ENJIN MATEMATIK AI SIMULASI (MAPPING INFRASTRUCTURE)
 # ------------------------------------------------------------------
-# Simulasi formula tindak balas fisiologi gas darah ICU berdasarkan pergerakan slider
 pred_ph = 7.40 - (rr * 0.003) + (vt * 0.05) - (pinsp * 0.002)
 pred_paco2 = 9.5 - (rr * vt * 0.4) + (peep * 0.05)
 pred_lactate = 1.0 + (pinsp * 0.15) + (fio2 * 0.01) - (peep * 0.02)
@@ -75,23 +72,22 @@ st.subheader("📊 Objective 1: Autonomous Real-Time Predictions & Alerts")
 
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.markdown('<div class="metric-card">', unsafe_html=True)
+    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
     st.metric(label="Predicted Arterial pH", value=f"{pred_ph:.2f}", delta="-0.04 (Acidosis Risk)" if pred_ph < 7.35 else "Stable")
-    st.markdown('</div>', unsafe_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 with col2:
-    st.markdown('<div class="metric-card">', unsafe_html=True)
+    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
     st.metric(label="Predicted PaCO2 Trajectory", value=f"{pred_paco2:.1f} kPa", delta="+0.5 kPa Trend" if pred_paco2 > 6.0 else "Normal")
-    st.markdown('</div>', unsafe_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 with col3:
-    st.markdown('<div class="metric-card">', unsafe_html=True)
+    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
     st.metric(label="Predicted Serum Lactate", value=f"{pred_lactate:.1f} mmol/L", delta="🚨 Critical" if pred_lactate > 4.0 else "Stable")
-    st.markdown('</div>', unsafe_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-st.write("") # Ruang penjarakan grafik
+st.write("") 
 
-# Pemicu Banner Amaran Automatik (Threshold Alert System)
 if pred_ph < 7.35 or pred_lactate > 4.0:
     st.error("🚨 ALERT STATUS: SYSTEMIC HYPOPERFUSION & RESPIRATORY FAILURE RISK DETECTED")
 else:
@@ -109,15 +105,11 @@ col_graph1, col_graph2 = st.columns(2)
 with col_graph1:
     st.markdown("**PANEL A: ANFIS 3D Fuzzy Surface Plot (Interactive)**")
     
-    # Penjanaan data satah untuk paksi grafik 3D
     x_paco2_axis = np.linspace(4.0, 10.0, 30)
     y_rr_axis = np.linspace(10, 35, 30)
     X, Y = np.meshgrid(x_paco2_axis, y_rr_axis)
-    
-    # Meniru persamaan satah Sugeno FIS bagi pemodelan ralat input pesakit
     Z = 35 + (X * 3.5) + (Y * 0.4) + (pinsp - peep)
     
-    # Membina Grafik 3D Plotly (Boleh sentuh & putar pada tablet/telefon)
     fig_3d = go.Figure(data=[go.Surface(z=Z, x=x_paco2_axis, y=y_rr_axis, colorscale="Viridis")])
     fig_3d.update_layout(
         scene=dict(
@@ -134,13 +126,11 @@ with col_graph1:
 with col_graph2:
     st.markdown("**PANEL B: XGBoost & BiLSTM SHAP Interpretability Ranking**")
     
-    # Taburan data kepentingan ciri model pepohon (SHAP values)
     shap_df = pd.DataFrame({
         'Clinical Feature': ['Tidal Volume (Vt)', 'PEEP Setting', 'Respiration Rate (RR)', 'Peak Insp. Pressure (Pinsp)', 'PaCO2 Input'],
         'SHAP Value (Impact)': [0.04, 0.08, 0.18, 0.28, 0.42]
     })
     
-    # Membina Carta Bar Mendatar Plotly
     fig_bar = go.Figure(go.Bar(
         x=shap_df['SHAP Value (Impact)'],
         y=shap_df['Clinical Feature'],
