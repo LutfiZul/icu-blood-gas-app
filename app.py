@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 # ------------------------------------------------------------------
-# 1. SETUP HALAMAN & KONFIGURASI VISUAL (RESPONSIF MERENTAS PERANTI)
+# 1. PAGE SETUP & VISUAL CONFIGURATION (CROSS-PLATFORM RESPONSIVE)
 # ------------------------------------------------------------------
 st.set_page_config(
     page_title="CDSS - Fecal Peritonitis ICU Dashboard",
@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Rekaan CSS Khas Gred Klinikal (Warna Biru Tua Korporat UiTM)
+# Clinical-Grade Dark Blue Theme Styling (UiTM Corporate Alignment)
 st.markdown("""
     <style>
     .header-box {
@@ -35,7 +35,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Header Utama Dashboard
+# Main Dashboard Top Header
 st.markdown("""
     <div class="header-box">
         <div class="main-title">🩺 CLINICAL DECISION SUPPORT SYSTEM (CDSS) DASHBOARD</div>
@@ -44,10 +44,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
-# 2. SIDEBAR KAWALAN INPUT: ELEMEN AUTOMASI (AUTOMATION ELEMENT)
+# 2. SIDEBAR INPUT CONTROLS: AUTOMATION ELEMENT
 # ------------------------------------------------------------------
 st.sidebar.header("🎛️ Ventilator Input Controls")
-st.sidebar.markdown("Modulasikan tetapan ventilator untuk mensimulasikan perubahan fisiologi pesakit:")
+st.sidebar.markdown("Modulate the ventilator settings to simulate dynamic physiological shifts:")
 
 fio2 = st.sidebar.slider("Fraction of Inspired Oxygen (FiO2 - %)", 21, 100, 45, 1)
 rr = st.sidebar.slider("Respiration Rate (RR - bpm)", 10, 35, 24, 1)
@@ -56,17 +56,18 @@ pinsp = st.sidebar.slider("Peak Inspiratory Pressure (Pinsp - cmH2O)", 10, 30, 1
 peep = st.sidebar.slider("Positive End-Expiratory Pressure (PEEP - cmH2O)", 5, 15, 7, 1)
 
 st.sidebar.markdown("---")
-st.sidebar.info("**Enjin Inferens AI:** Aktif 🟢\n\n**Paparan:** Dioptimumkan untuk PC, Xiaomi Pad 6 & Realme GT6.")
+st.sidebar.info("**AI Inference Engine:** Active 🟢\n\n**UI Rendering:** Optimized for PC, tablet, and mobile platforms.")
 
 # ------------------------------------------------------------------
-# 3. ENJIN MATEMATIK AI SIMULASI (MAPPING INFRASTRUCTURE)
+# 3. BACKGROUND AI INFERENCE ENGINE SIMULATION
 # ------------------------------------------------------------------
+# Mathematical mapping proxy representing dynamic target output variations
 pred_ph = 7.40 - (rr * 0.003) + (vt * 0.05) - (pinsp * 0.002)
 pred_paco2 = 9.5 - (rr * vt * 0.4) + (peep * 0.05)
 pred_lactate = 1.0 + (pinsp * 0.15) + (fio2 * 0.01) - (peep * 0.02)
 
 # ------------------------------------------------------------------
-# 4. ROW 1: PREDIKSI MASA-NYATA & AMARAN KLINIKAL (OBJECTIVE 1)
+# 4. ROW 1: REAL-TIME PREDICTIONS & CRITICAL ALERTS (OBJECTIVE 1)
 # ------------------------------------------------------------------
 st.subheader("📊 Objective 1: Autonomous Real-Time Predictions & Alerts")
 
@@ -88,6 +89,7 @@ with col3:
 
 st.write("") 
 
+# Automated Threshold Alert Banners
 if pred_ph < 7.35 or pred_lactate > 4.0:
     st.error("🚨 ALERT STATUS: SYSTEMIC HYPOPERFUSION & RESPIRATORY FAILURE RISK DETECTED")
 else:
@@ -96,7 +98,7 @@ else:
 st.markdown("---")
 
 # ------------------------------------------------------------------
-# 5. ROW 2: KLUSTER VISUALISASI DIGITAL (OBJECTIVE 3)
+# 5. ROW 2: DIGITAL VISUALIZATION CLUSTER (OBJECTIVE 3)
 # ------------------------------------------------------------------
 st.subheader("📈 Objective 3: Digital Visualization & Clinical Explainability Cluster (XAI)")
 
@@ -105,11 +107,15 @@ col_graph1, col_graph2 = st.columns(2)
 with col_graph1:
     st.markdown("**PANEL A: ANFIS 3D Fuzzy Surface Plot (Interactive)**")
     
+    # Meshgrid generation for 3D analytical geometry
     x_paco2_axis = np.linspace(4.0, 10.0, 30)
     y_rr_axis = np.linspace(10, 35, 30)
     X, Y = np.meshgrid(x_paco2_axis, y_rr_axis)
+    
+    # Mathematical equation simulating our optimized ANFIS surface structure
     Z = 35 + (X * 3.5) + (Y * 0.4) + (pinsp - peep)
     
+    # Plotly 3D Surface instantiation
     fig_3d = go.Figure(data=[go.Surface(z=Z, x=x_paco2_axis, y=y_rr_axis, colorscale="Viridis")])
     fig_3d.update_layout(
         scene=dict(
@@ -121,16 +127,18 @@ with col_graph1:
         height=380
     )
     st.plotly_chart(fig_3d, use_container_width=True)
-    st.caption("💡 Tip Interaktif: Sentuh dan seret permukaan graf 3D di atas menggunakan jari pada skrin Xiaomi Pad 6 atau Realme GT6 awak untuk memutar sudut pandangan.")
+    st.caption("💡 Platform Tip: Use a single swipe or touch interaction on mobile and tablet platforms to rotate this 3D surface map.")
 
 with col_graph2:
     st.markdown("**PANEL B: XGBoost & BiLSTM SHAP Interpretability Ranking**")
     
+    # Mock data framework mapping game-theoretic features
     shap_df = pd.DataFrame({
         'Clinical Feature': ['Tidal Volume (Vt)', 'PEEP Setting', 'Respiration Rate (RR)', 'Peak Insp. Pressure (Pinsp)', 'PaCO2 Input'],
         'SHAP Value (Impact)': [0.04, 0.08, 0.18, 0.28, 0.42]
     })
     
+    # Horizontal Bar graph instantiation
     fig_bar = go.Figure(go.Bar(
         x=shap_df['SHAP Value (Impact)'],
         y=shap_df['Clinical Feature'],
@@ -148,7 +156,7 @@ with col_graph2:
 st.markdown("---")
 
 # ------------------------------------------------------------------
-# 6. ROW 3: PENILAIAN KETEPATAN MODEL KONTINU (OBJECTIVE 2)
+# 6. ROW 3: CONTINUOUS PERFORMANCE EVALUATION METRICS (OBJECTIVE 2)
 # ------------------------------------------------------------------
 st.subheader("📋 Objective 2: Continuous Model Accuracy Performance Benchmarking")
 
