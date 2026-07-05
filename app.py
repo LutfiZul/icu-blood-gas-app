@@ -37,12 +37,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Header Utama Dashboard
+# Header Utama Dashboard
 st.markdown("""
     <div class="header-box">
         <div class="main-title">🩺 CLINICAL DECISION SUPPORT SYSTEM (CDSS) DASHBOARD</div>
         <div class="sub-title">Faculty of Electrical Engineering, UiTM Pasir Gudang | FYP1 Preliminary Framework</div>
     </div>
-""", unsafe_html=True)
+""", unsafe_allow_html=True) # <-- DITUKAR KEPADA unsafe_allow_html=True
 
 # ------------------------------------------------------------------
 # 2. SIDEBAR KAWALAN INPUT: ELEMEN AUTOMASI (AUTOMATION ELEMENT)
