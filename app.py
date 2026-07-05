@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 # ------------------------------------------------------------------
-# 1. SETUP HALAMAN & KONFIGURASI VISUAL (RESPONSIF)
+# 1. SETUP HALAMAN & KONFIGURASI VISUAL (RESPONSIF MERENTAS PERANTI)
 # ------------------------------------------------------------------
 st.set_page_config(
     page_title="CDSS - Fecal Peritonitis ICU Dashboard",
@@ -12,11 +12,20 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Rekaan CSS khas gred klinikal (Warna korporat biru tua UiTM & kad metrik kemas)
+# Rekaan CSS Khas Gred Klinikal (Warna Biru Tua Korporat UiTM)
+# Pembetulan Parameter Keselamatan Menggunakan unsafe_allow_html=True
 st.markdown("""
     <style>
-    .main-title { font-size:26px; font-weight:bold; color:#1E3A8A; margin-bottom:5px; }
-    .sub-title { font-size:14px; color:#4B5563; margin-bottom:20px; }
+    .header-box {
+        background-color: #1E3A8A;
+        padding: 20px;
+        border-radius: 10px;
+        color: white;
+        text-align: center;
+        margin-bottom: 25px;
+    }
+    .main-title { font-size: 26px; font-weight: bold; margin: 0; }
+    .sub-title { font-size: 14px; opacity: 0.85; margin-top: 5px; }
     .metric-card {
         background-color: #F8FAFC;
         padding: 15px;
@@ -25,7 +34,7 @@ st.markdown("""
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     </style>
-""", unsafe_allow_html=True) # <-- PEMBETULAN DI SINI
+""", unsafe_allow_html=True)
 
 # Header Utama Dashboard
 st.markdown("""
@@ -36,10 +45,10 @@ st.markdown("""
 """, unsafe_html=True)
 
 # ------------------------------------------------------------------
-# 2. SIDEBAR KAWALAN INPUT: AUTOMATION ELEMENT
+# 2. SIDEBAR KAWALAN INPUT: ELEMEN AUTOMASI (AUTOMATION ELEMENT)
 # ------------------------------------------------------------------
 st.sidebar.header("🎛️ Ventilator Input Controls")
-st.sidebar.markdown("Ubah suai dial ventilator untuk simulasi dinamik parameter pesakit ICU:")
+st.sidebar.markdown("Modulasikan tetapan ventilator untuk mensimulasikan perubahan fisiologi pesakit:")
 
 fio2 = st.sidebar.slider("Fraction of Inspired Oxygen (FiO2 - %)", 21, 100, 45, 1)
 rr = st.sidebar.slider("Respiration Rate (RR - bpm)", 10, 35, 24, 1)
@@ -51,15 +60,15 @@ st.sidebar.markdown("---")
 st.sidebar.info("**Enjin Inferens AI:** Aktif 🟢\n\n**Paparan:** Dioptimumkan untuk PC, Xiaomi Pad 6 & Realme GT6.")
 
 # ------------------------------------------------------------------
-# 3. ENJIN MATEMATIK AI SIMULASI (MAPPING INPUT TO OUTPUT)
+# 3. ENJIN MATEMATIK AI SIMULASI (MAPPING INFRASTRUCTURE)
 # ------------------------------------------------------------------
-# Simulasi formula fisiologi bagi menunjukkan tindak balas terus pada widget
+# Simulasi formula tindak balas fisiologi gas darah ICU berdasarkan pergerakan slider
 pred_ph = 7.40 - (rr * 0.003) + (vt * 0.05) - (pinsp * 0.002)
 pred_paco2 = 9.5 - (rr * vt * 0.4) + (peep * 0.05)
 pred_lactate = 1.0 + (pinsp * 0.15) + (fio2 * 0.01) - (peep * 0.02)
 
 # ------------------------------------------------------------------
-# 4. ROW 1: REAL-TIME PREDICTIONS & CRITICAL ALERTS (OBJECTIVE 1)
+# 4. ROW 1: PREDIKSI MASA-NYATA & AMARAN KLINIKAL (OBJECTIVE 1)
 # ------------------------------------------------------------------
 st.subheader("📊 Objective 1: Autonomous Real-Time Predictions & Alerts")
 
@@ -79,9 +88,9 @@ with col3:
     st.metric(label="Predicted Serum Lactate", value=f"{pred_lactate:.1f} mmol/L", delta="🚨 Critical" if pred_lactate > 4.0 else "Stable")
     st.markdown('</div>', unsafe_html=True)
 
-st.write("") # Ruang kosong
+st.write("") # Ruang penjarakan grafik
 
-# Trigger Banner Amaran Automatik Berdasarkan Threshold Nilai pH & Lactate
+# Pemicu Banner Amaran Automatik (Threshold Alert System)
 if pred_ph < 7.35 or pred_lactate > 4.0:
     st.error("🚨 ALERT STATUS: SYSTEMIC HYPOPERFUSION & RESPIRATORY FAILURE RISK DETECTED")
 else:
@@ -90,7 +99,7 @@ else:
 st.markdown("---")
 
 # ------------------------------------------------------------------
-# 5. ROW 2: DIGITAL VISUALIZATION CLUSTER (OBJECTIVE 3)
+# 5. ROW 2: KLUSTER VISUALISASI DIGITAL (OBJECTIVE 3)
 # ------------------------------------------------------------------
 st.subheader("📈 Objective 3: Digital Visualization & Clinical Explainability Cluster (XAI)")
 
@@ -99,15 +108,15 @@ col_graph1, col_graph2 = st.columns(2)
 with col_graph1:
     st.markdown("**PANEL A: ANFIS 3D Fuzzy Surface Plot (Interactive)**")
     
-    # Membina data grid X dan Y untuk satah permukaan 3D
+    # Penjanaan data satah untuk paksi grafik 3D
     x_paco2_axis = np.linspace(4.0, 10.0, 30)
     y_rr_axis = np.linspace(10, 35, 30)
     X, Y = np.meshgrid(x_paco2_axis, y_rr_axis)
     
-    # Formula simulasi mewakili bentuk output latih ANFIS yang kita baiki sebelum ini
+    # Meniru persamaan satah Sugeno FIS bagi pemodelan ralat input pesakit
     Z = 35 + (X * 3.5) + (Y * 0.4) + (pinsp - peep)
     
-    # Pembinaan Graf 3D Menggunakan Plotly
+    # Membina Grafik 3D Plotly (Boleh sentuh & putar pada tablet/telefon)
     fig_3d = go.Figure(data=[go.Surface(z=Z, x=x_paco2_axis, y=y_rr_axis, colorscale="Viridis")])
     fig_3d.update_layout(
         scene=dict(
@@ -119,18 +128,18 @@ with col_graph1:
         height=380
     )
     st.plotly_chart(fig_3d, use_container_width=True)
-    st.caption("💡 Tip Tablet/Telefon: Gunakan cubitan dua jari untuk zoom dan satu jari untuk memutar graf satah di atas.")
+    st.caption("💡 Tip Interaktif: Sentuh dan seret permukaan graf 3D di atas menggunakan jari pada skrin Xiaomi Pad 6 atau Realme GT6 awak untuk memutar sudut pandangan.")
 
 with col_graph2:
     st.markdown("**PANEL B: XGBoost & BiLSTM SHAP Interpretability Ranking**")
     
-    # Data mockup impak faktor model pepohon berdasarkan SHAP library
+    # Taburan data kepentingan ciri model pepohon (SHAP values)
     shap_df = pd.DataFrame({
         'Clinical Feature': ['Tidal Volume (Vt)', 'PEEP Setting', 'Respiration Rate (RR)', 'Peak Insp. Pressure (Pinsp)', 'PaCO2 Input'],
         'SHAP Value (Impact)': [0.04, 0.08, 0.18, 0.28, 0.42]
     })
     
-    # Carta bar mendatar Plotly
+    # Membina Carta Bar Mendatar Plotly
     fig_bar = go.Figure(go.Bar(
         x=shap_df['SHAP Value (Impact)'],
         y=shap_df['Clinical Feature'],
@@ -148,7 +157,7 @@ with col_graph2:
 st.markdown("---")
 
 # ------------------------------------------------------------------
-# 6. ROW 3: MODEL ACCURACY EVALUATION (OBJECTIVE 2)
+# 6. ROW 3: PENILAIAN KETEPATAN MODEL KONTINU (OBJECTIVE 2)
 # ------------------------------------------------------------------
 st.subheader("📋 Objective 2: Continuous Model Accuracy Performance Benchmarking")
 
