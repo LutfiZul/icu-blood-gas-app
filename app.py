@@ -15,16 +15,8 @@ st.set_page_config(
 # Rekaan CSS khas gred klinikal (Warna korporat biru tua UiTM & kad metrik kemas)
 st.markdown("""
     <style>
-    .header-box {
-        background-color: #1E3A8A;
-        padding: 20px;
-        border-radius: 10px;
-        color: white;
-        text-align: center;
-        margin-bottom: 25px;
-    }
-    .main-title { font-size: 26px; font-weight: bold; margin: 0; }
-    .sub-title { font-size: 14px; opacity: 0.85; margin-top: 5px; }
+    .main-title { font-size:26px; font-weight:bold; color:#1E3A8A; margin-bottom:5px; }
+    .sub-title { font-size:14px; color:#4B5563; margin-bottom:20px; }
     .metric-card {
         background-color: #F8FAFC;
         padding: 15px;
@@ -33,7 +25,7 @@ st.markdown("""
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     </style>
-""", unsafe_html=True)
+""", unsafe_allow_html=True) # <-- PEMBETULAN DI SINI
 
 # Header Utama Dashboard
 st.markdown("""
