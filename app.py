@@ -44,17 +44,75 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
-# 2. SIDEBAR INPUT CONTROLS
+# 2. SIDEBAR INPUT CONTROLS (SLIDER + EDITABLE TEXT INPUT SYNC)
 # ------------------------------------------------------------------
 st.sidebar.header("🎛️ Patient Vital Signs & Ventilator Settings")
 
-hr = st.sidebar.slider("Heart Rate (HR - BPM)", 40, 160, 85, 1)
-spo2 = st.sidebar.slider("SpO2 (%)", 70, 100, 96, 1)
-rr = st.sidebar.slider("Respiration Rate (RR - bpm)", 8, 40, 18, 1)
-fio2 = st.sidebar.slider("Fraction of Inspired Oxygen (FiO2 - %)", 21, 100, 40, 1)
+# --- Heart Rate (HR) ---
+if "hr" not in st.session_state:
+    st.session_state.hr = 85
+
+def update_hr_slider():
+    st.session_state.hr = st.session_state.hr_num
+def update_hr_num():
+    st.session_state.hr_num = st.session_state.hr
+
+c1, c2 = st.sidebar.columns([2.5, 1.2])
+with c1:
+    hr = st.slider("Heart Rate (HR - BPM)", 40, 160, key="hr", on_change=update_hr_num)
+with c2:
+    st.number_input("Text Input", 40, 160, key="hr_num", value=st.session_state.hr, on_change=update_hr_slider, label_visibility="hidden")
+
+
+# --- SpO2 (%) ---
+if "spo2" not in st.session_state:
+    st.session_state.spo2 = 96
+
+def update_spo2_slider():
+    st.session_state.spo2 = st.session_state.spo2_num
+def update_spo2_num():
+    st.session_state.spo2_num = st.session_state.spo2
+
+c1, c2 = st.sidebar.columns([2.5, 1.2])
+with c1:
+    spo2 = st.slider("SpO2 (%)", 70, 100, key="spo2", on_change=update_spo2_num)
+with c2:
+    st.number_input("Text Input", 70, 100, key="spo2_num", value=st.session_state.spo2, on_change=update_spo2_slider, label_visibility="hidden")
+
+
+# --- Respiration Rate (RR) ---
+if "rr" not in st.session_state:
+    st.session_state.rr = 18
+
+def update_rr_slider():
+    st.session_state.rr = st.session_state.rr_num
+def update_rr_num():
+    st.session_state.rr_num = st.session_state.rr
+
+c1, c2 = st.sidebar.columns([2.5, 1.2])
+with c1:
+    rr = st.slider("Respiration Rate (RR - bpm)", 8, 40, key="rr", on_change=update_rr_num)
+with c2:
+    st.number_input("Text Input", 8, 40, key="rr_num", value=st.session_state.rr, on_change=update_rr_slider, label_visibility="hidden")
+
+
+# --- FiO2 (%) ---
+if "fio2" not in st.session_state:
+    st.session_state.fio2 = 40
+
+def update_fio2_slider():
+    st.session_state.fio2 = st.session_state.fio2_num
+def update_fio2_num():
+    st.session_state.fio2_num = st.session_state.fio2
+
+c1, c2 = st.sidebar.columns([2.5, 1.2])
+with c1:
+    fio2 = st.slider("Fraction of Inspired Oxygen (FiO2 - %)", 21, 100, key="fio2", on_change=update_fio2_num)
+with c2:
+    st.number_input("Text Input", 21, 100, key="fio2_num", value=st.session_state.fio2, on_change=update_fio2_slider, label_visibility="hidden")
 
 st.sidebar.markdown("---")
-st.sidebar.info("**AI Engine:** BiLSTM-Attention Active 🟢\n\n**UI Status:** Cloud Deployment Stable.")
+st.sidebar.info("**AI Engine:** BiLSTM-Attention Active 🟢\n\n**UI Control:** Hybrid Slider + Editable Text Input")
 
 # ------------------------------------------------------------------
 # 3. DYNAMIC AI INFERENCE ENGINE
@@ -113,7 +171,6 @@ st.markdown("---")
 # ------------------------------------------------------------------
 st.subheader("📈 Objective 3: Digital Visualization & Clinical Explainability Cluster (XAI)")
 
-# Bahagi kepada 3 Kolum supaya muat DUA-DUA visualisasi
 col_vis1, col_vis2, col_vis3 = st.columns([1.2, 1, 1])
 
 # --- VISUALISASI 1: 3D SURFACE PLOT ---
