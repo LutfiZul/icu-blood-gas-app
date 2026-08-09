@@ -109,56 +109,81 @@ else:
 st.markdown("---")
 
 # ------------------------------------------------------------------
-# 5. ROW 2: DIGITAL VISUALIZATION CLUSTER (OBJECTIVE 3 - WITH 3D SURFACE)
+# 5. ROW 2: DIGITAL VISUALIZATION CLUSTER (OBJECTIVE 3 - BOTH 3D & GAUGE)
 # ------------------------------------------------------------------
 st.subheader("📈 Objective 3: Digital Visualization & Clinical Explainability Cluster (XAI)")
 
-col_graph1, col_graph2 = st.columns(2)
+# Bahagi kepada 3 Kolum supaya muat DUA-DUA visualisasi
+col_vis1, col_vis2, col_vis3 = st.columns([1.2, 1, 1])
 
-with col_graph1:
-    st.markdown("**PANEL A: ANFIS / BiLSTM 3D Fuzzy Surface Plot (Interactive)**")
+# --- VISUALISASI 1: 3D SURFACE PLOT ---
+with col_vis1:
+    st.markdown("**PANEL A: 3D Surface Plot (Interactive)**")
     
-    # Meshgrid generation for 3D analytical geometry
-    x_fio2_axis = np.linspace(21, 100, 30)
-    y_rr_axis = np.linspace(8, 40, 30)
+    x_fio2_axis = np.linspace(21, 100, 25)
+    y_rr_axis = np.linspace(8, 40, 25)
     X, Y = np.meshgrid(x_fio2_axis, y_rr_axis)
-    
-    # 3D Surface mathematical calculation
     Z = ((X / 100.0) * 210) - (Y * 0.75) + (spo2 * 0.15)
     
-    # Plotly 3D Surface instantiation
     fig_3d = go.Figure(data=[go.Surface(z=Z, x=x_fio2_axis, y=y_rr_axis, colorscale="Viridis")])
     fig_3d.update_layout(
         scene=dict(
             xaxis_title='FiO2 (%)',
-            yaxis_title='Respiration Rate (RR)',
-            zaxis_title='Predicted PaO2 (mmHg)'
+            yaxis_title='RR (bpm)',
+            zaxis_title='PaO2 (mmHg)'
         ),
-        margin=dict(l=10, r=10, b=10, t=10),
-        height=380
+        margin=dict(l=5, r=5, b=5, t=5),
+        height=360
     )
     st.plotly_chart(fig_3d, use_container_width=True)
-    st.caption("💡 Platform Tip: Guna mouse / sentuhan skrin untuk putar dan tengok permukaan 3D dari pelbagai sudut.")
 
-with col_graph2:
-    st.markdown("**PANEL B: Feature Importance & SHAP Interpretability Ranking**")
+# --- VISUALISASI 2: GAUGE CHART ---
+with col_vis2:
+    st.markdown("**PANEL B: PaO2 Target Gauge Chart**")
+    
+    fig_gauge = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=predicted_pao2,
+        domain={'x': [0, 1], 'y': [0, 1]},
+        title={'text': "PaO2 Level (mmHg)"},
+        gauge={
+            'axis': {'range': [0, 250]},
+            'bar': {'color': "#1E3A8A"},
+            'steps': [
+                {'range': [0, 60], 'color': "#EF4444"},
+                {'range': [60, 80], 'color': "#F59E0B"},
+                {'range': [80, 250], 'color': "#10B981"}
+            ],
+            'threshold': {
+                'line': {'color': "black", 'width': 4},
+                'thickness': 0.75,
+                'value': predicted_pao2
+            }
+        }
+    ))
+    fig_gauge.update_layout(margin=dict(l=10, r=10, b=10, t=30), height=360)
+    st.plotly_chart(fig_gauge, use_container_width=True)
+
+# --- VISUALISASI 3: SHAP BAR CHART ---
+with col_vis3:
+    st.markdown("**PANEL C: SHAP Feature Importance**")
     
     shap_df = pd.DataFrame({
-        'Clinical Feature': ['Heart Rate (HR)', 'Respiration Rate (RR)', 'SpO2 Level', 'FiO2 Setting'],
-        'SHAP Value (Impact)': [0.08, 0.22, 0.31, 0.45]
+        'Clinical Feature': ['Heart Rate', 'Resp. Rate', 'SpO2 Level', 'FiO2 Setting'],
+        'SHAP Value': [0.08, 0.22, 0.31, 0.45]
     })
     
     fig_bar = go.Figure(go.Bar(
-        x=shap_df['SHAP Value (Impact)'],
+        x=shap_df['SHAP Value'],
         y=shap_df['Clinical Feature'],
         orientation='h',
         marker=dict(color='#1E3A8A')
     ))
     fig_bar.update_layout(
-        xaxis_title="SHAP Value (Impact on PaO2 Prediction)",
-        yaxis_title="Clinical Parameters",
+        xaxis_title="SHAP Impact",
+        yaxis_title="Parameters",
         margin=dict(l=10, r=10, b=40, t=10),
-        height=380
+        height=360
     )
     st.plotly_chart(fig_bar, use_container_width=True)
 
