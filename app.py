@@ -39,7 +39,7 @@ st.markdown("""
 st.markdown("""
     <div class="header-box">
         <div class="main-title">🩺 CLINICAL DECISION SUPPORT SYSTEM (CDSS) DASHBOARD</div>
-        <div class="sub-title">Faculty of Electrical Engineering, UiTM Pasir Gudang | FYP1 Preliminary Framework</div>
+        <div class="sub-title">Faculty of Electrical Engineering, UiTM Pasir Gudang | FYP Framework</div>
     </div>
 """, unsafe_allow_html=True)
 
