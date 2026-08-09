@@ -1,170 +1,116 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
+import tensorflow as tf
+import joblib
 import plotly.graph_objects as go
 
-# ------------------------------------------------------------------
-# 1. PAGE SETUP & VISUAL CONFIGURATION (CROSS-PLATFORM RESPONSIVE)
-# ------------------------------------------------------------------
+# ---------------------------------------------------------
+# 1. PAGE CONFIGURATION & TITLE
+# ---------------------------------------------------------
 st.set_page_config(
-    page_title="CDSS - Fecal Peritonitis ICU Dashboard",
-    layout="wide",
+    page_title="ICU AI Data Manager - Blood Gas Predictor",
+    page_layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Clinical-Grade Dark Blue Theme Styling (UiTM Corporate Alignment)
-st.markdown("""
-    <style>
-    .header-box {
-        background-color: #1E3A8A;
-        padding: 20px;
-        border-radius: 10px;
-        color: white;
-        text-align: center;
-        margin-bottom: 25px;
-    }
-    .main-title { font-size: 26px; font-weight: bold; margin: 0; }
-    .sub-title { font-size: 14px; opacity: 0.85; margin-top: 5px; }
-    .metric-card {
-        background-color: #F8FAFC;
-        padding: 15px;
-        border-radius: 8px;
-        border-left: 5px solid #3B82F6;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    </style>
-""", unsafe_allow_html=True)
+st.title("🩺 ICU AI Data Manager: Blood Gas (PaO2) Predictor")
+st.markdown("---")
 
-# Main Dashboard Top Header
-st.markdown("""
-    <div class="header-box">
-        <div class="main-title">🩺 CLINICAL DECISION SUPPORT SYSTEM (CDSS) DASHBOARD</div>
-        <div class="sub-title">Faculty of Electrical Engineering, UiTM Pasir Gudang | FYP Framework</div>
-    </div>
-""", unsafe_allow_html=True)
+# ---------------------------------------------------------
+# 2. LOAD TRAINED MODEL & SCALER
+# ---------------------------------------------------------
+@st.cache_resource
+def load_assets():
+    model = tf.keras.models.load_model("bilstm_model.h5", compile=False)
+    scaler = joblib.load("scaler.pkl")
+    return model, scaler
 
-# ------------------------------------------------------------------
-# 2. SIDEBAR INPUT CONTROLS: AUTOMATION ELEMENT
-# ------------------------------------------------------------------
-st.sidebar.header("🎛️ Ventilator Input Controls")
-st.sidebar.markdown("Modulate the ventilator settings to simulate dynamic physiological shifts:")
+try:
+    model, scaler = load_assets()
+    st.sidebar.success("✅ AI Model & Scaler Loaded Successfully!")
+except Exception as e:
+    st.sidebar.error(f"❌ Error loading assets: {e}")
 
-fio2 = st.sidebar.slider("Fraction of Inspired Oxygen (FiO2 - %)", 21, 100, 45, 1)
-rr = st.sidebar.slider("Respiration Rate (RR - bpm)", 10, 35, 24, 1)
-vt = st.sidebar.slider("Tidal Volume (Vt - Liter)", 0.30, 0.80, 0.52, 0.01)
-pinsp = st.sidebar.slider("Peak Inspiratory Pressure (Pinsp - cmH2O)", 10, 30, 18, 1)
-peep = st.sidebar.slider("Positive End-Expiratory Pressure (PEEP - cmH2O)", 5, 15, 7, 1)
+# ---------------------------------------------------------
+# 3. SIDEBAR: CLINICAL INPUT SLIDERS
+# ---------------------------------------------------------
+st.sidebar.header("🎛️ Patient Vital Signs (Current)")
 
-st.sidebar.markdown("---")
-st.sidebar.info("**AI Inference Engine:** Active 🟢\n\n**UI Rendering:** Optimized for PC, tablet, and mobile platforms.")
+hr = st.sidebar.slider("Heart Rate (BPM)", min_value=40, max_value=160, value=85)
+spo2 = st.sidebar.slider("SpO2 (%)", min_value=70, max_value=100, value=96)
+rr = st.sidebar.slider("Respiratory Rate (bpm)", min_value=8, max_value=40, value=18)
+fio2 = st.sidebar.slider("FiO2 (Fraction of Inspired O2)", min_value=0.21, max_value=1.00, value=0.40, step=0.01)
 
-# ------------------------------------------------------------------
-# 3. BACKGROUND AI INFERENCE ENGINE SIMULATION
-# ------------------------------------------------------------------
-# Mathematical mapping proxy representing dynamic target output variations
-pred_ph = 7.40 - (rr * 0.003) + (vt * 0.05) - (pinsp * 0.002)
-pred_paco2 = 9.5 - (rr * vt * 0.4) + (peep * 0.05)
-pred_lactate = 1.0 + (pinsp * 0.15) + (fio2 * 0.01) - (peep * 0.02)
+# ---------------------------------------------------------
+# 4. PREDICTION INFERENCE ENGINE
+# ---------------------------------------------------------
+# Prepare sequence data (6 time-steps using current inputs)
+# Features order: [Heart_Rate, SpO2, Respiratory_Rate, FiO2, PaO2_Dummy]
+raw_input = np.array([[hr, spo2, rr, fio2, 0.0]])
 
-# ------------------------------------------------------------------
-# 4. ROW 1: REAL-TIME PREDICTIONS & CRITICAL ALERTS (OBJECTIVE 1)
-# ------------------------------------------------------------------
-st.subheader("📊 Objective 1: Autonomous Real-Time Predictions & Alerts")
+# Transform using fitted MinMaxScaler
+dummy_df = pd.DataFrame(raw_input, columns=['Heart_Rate', 'SpO2', 'Respiratory_Rate', 'FiO2', 'PaO2_Target'])
+scaled_input = scaler.transform(dummy_df)[:, :-1] # Take only feature columns
 
-col1, col2, col3 = st.columns(3)
+# Tile input to match 6 time-step requirement: Shape (1, 6, 4)
+sequence_input = np.tile(scaled_input, (1, 6, 1))
+
+# Run BiLSTM Inference
+scaled_pred = model.predict(sequence_input, verbose=0)[0][0]
+
+# Inverse transform prediction to original PaO2 scale (mmHg)
+# Unscale formula: value * (max - min) + min
+pao2_min = scaler.data_min_[-1]
+pao2_max = scaler.data_max_[-1]
+predicted_pao2 = scaled_pred * (pao2_max - pao2_min) + pao2_min
+
+# ---------------------------------------------------------
+# 5. DASHBOARD LAYOUT & METRICS
+# ---------------------------------------------------------
+col1, col2 = st.columns([1, 2])
+
 with col1:
-    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-    st.metric(label="Predicted Arterial pH", value=f"{pred_ph:.2f}", delta="-0.04 (Acidosis Risk)" if pred_ph < 7.35 else "Stable")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.subheader("🎯 Predicted Parameter")
+    st.metric(
+        label="Predicted PaO2 (Partial Pressure of O2)",
+        value=f"{predicted_pao2:.2f} mmHg",
+        delta=f"{'Normal' if predicted_pao2 >= 80 else 'Warning: Low PaO2'}"
+    )
+    
+    # Clinical Status Alert
+    if predicted_pao2 < 60:
+        st.error("🚨 **CRITICAL ALERT:** Severe Hypoxemia Detected! Immediate Oxygen Therapy Adjustment Required.")
+    elif 60 <= predicted_pao2 < 80:
+        st.warning("⚠️ **WARNING:** Mild-to-Moderate Hypoxemia. Monitor PaO2/FiO2 Ratio.")
+    else:
+        st.success("🟢 **NORMAL:** Oxygenation level is adequate.")
 
 with col2:
-    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-    st.metric(label="Predicted PaCO2 Trajectory", value=f"{pred_paco2:.1f} kPa", delta="+0.5 kPa Trend" if pred_paco2 > 6.0 else "Normal")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-with col3:
-    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-    st.metric(label="Predicted Serum Lactate", value=f"{pred_lactate:.1f} mmol/L", delta="🚨 Critical" if pred_lactate > 4.0 else "Stable")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-st.write("") 
-
-# Automated Threshold Alert Banners
-if pred_ph < 7.35 or pred_lactate > 4.0:
-    st.error("🚨 ALERT STATUS: SYSTEMIC HYPOPERFUSION & RESPIRATORY FAILURE RISK DETECTED")
-else:
-    st.success("🟢 PHYSIOLOGICAL TRAJECTORY STABLE: Patient Responding Well to Current Ventilator Support")
-
-st.markdown("---")
-
-# ------------------------------------------------------------------
-# 5. ROW 2: DIGITAL VISUALIZATION CLUSTER (OBJECTIVE 3)
-# ------------------------------------------------------------------
-st.subheader("📈 Objective 3: Digital Visualization & Clinical Explainability Cluster (XAI)")
-
-col_graph1, col_graph2 = st.columns(2)
-
-with col_graph1:
-    st.markdown("**PANEL A: ANFIS 3D Fuzzy Surface Plot (Interactive)**")
+    st.subheader("📊 Oxygenation Gauge Indicator")
     
-    # Meshgrid generation for 3D analytical geometry
-    x_paco2_axis = np.linspace(4.0, 10.0, 30)
-    y_rr_axis = np.linspace(10, 35, 30)
-    X, Y = np.meshgrid(x_paco2_axis, y_rr_axis)
-    
-    # Mathematical equation simulating our optimized ANFIS surface structure
-    Z = 35 + (X * 3.5) + (Y * 0.4) + (pinsp - peep)
-    
-    # Plotly 3D Surface instantiation
-    fig_3d = go.Figure(data=[go.Surface(z=Z, x=x_paco2_axis, y=y_rr_axis, colorscale="Viridis")])
-    fig_3d.update_layout(
-        scene=dict(
-            xaxis_title='PaCO2 Input Setting',
-            yaxis_title='Respiration Rate (RR - bpm)',
-            zaxis_title='Predicted AI Scale'
-        ),
-        margin=dict(l=10, r=10, b=10, t=10),
-        height=380
-    )
-    st.plotly_chart(fig_3d, use_container_width=True)
-    st.caption("💡 Platform Tip: Use a single swipe or touch interaction on mobile and tablet platforms to rotate this 3D surface map.")
-
-with col_graph2:
-    st.markdown("**PANEL B: XGBoost & BiLSTM SHAP Interpretability Ranking**")
-    
-    # Mock data framework mapping game-theoretic features
-    shap_df = pd.DataFrame({
-        'Clinical Feature': ['Tidal Volume (Vt)', 'PEEP Setting', 'Respiration Rate (RR)', 'Peak Insp. Pressure (Pinsp)', 'PaCO2 Input'],
-        'SHAP Value (Impact)': [0.04, 0.08, 0.18, 0.28, 0.42]
-    })
-    
-    # Horizontal Bar graph instantiation
-    fig_bar = go.Figure(go.Bar(
-        x=shap_df['SHAP Value (Impact)'],
-        y=shap_df['Clinical Feature'],
-        orientation='h',
-        marker=dict(color='#1E3A8A', line=dict(color='#1E3A8A', width=1))
+    # Gauge Chart
+    fig = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = predicted_pao2,
+        domain = {'x': [0, 1], 'y': [0, 1]},
+        title = {'text': "PaO2 Level (mmHg)"},
+        gauge = {
+            'axis': {'range': [0, 300]},
+            'bar': {'color': "darkblue"},
+            'steps' : [
+                {'range': [0, 60], 'color': "red"},
+                {'range': [60, 80], 'color': "orange"},
+                {'range': [80, 300], 'color': "green"}
+            ],
+            'threshold': {
+                'line': {'color': "black", 'width': 4},
+                'thickness': 0.75,
+                'value': predicted_pao2
+            }
+        }
     ))
-    fig_bar.update_layout(
-        xaxis_title="SHAP Value (Impact on Prediction Accuracy)",
-        yaxis_title="Input Parameters",
-        margin=dict(l=10, r=10, b=40, t=10),
-        height=380
-    )
-    st.plotly_chart(fig_bar, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("---")
-
-# ------------------------------------------------------------------
-# 6. ROW 3: CONTINUOUS PERFORMANCE EVALUATION METRICS (OBJECTIVE 2)
-# ------------------------------------------------------------------
-st.subheader("📋 Objective 2: Continuous Model Accuracy Performance Benchmarking")
-
-metrics_data = {
-    "Algorithm Architecture": ["ANFIS (Proposed Model)", "BiLSTM-Attention (Deep Temporal)", "XGBoost (Tree-Based Ensemble)"],
-    "Target Parameters": ["pH, PaCO2, Lactate Trajectory", "pH, PaCO2, Lactate Trajectory", "Tabular Snapshot Only"],
-    "Continuous RMSE": [0.1142, 0.1458, 0.2011],
-    "Continuous MAE": [0.0821, 0.1092, 0.1654],
-    "Framework Status": ["🟢 Optimal (Self-Tuned via nPSO)", "🟡 Heavy Temporal State", "🔴 Static Tabular Only"]
-}
-st.table(pd.DataFrame(metrics_data))
+st.info("💡 **FYP System Info:** Model powered by **BiLSTM-Attention Neural Network** trained on time-series ICU data.")
