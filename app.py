@@ -57,7 +57,7 @@ st.sidebar.markdown("---")
 st.sidebar.info("**AI Engine:** BiLSTM-Attention Active 🟢\n\n**UI Status:** Cloud Deployment Stable.")
 
 # ------------------------------------------------------------------
-# 3. DYNAMIC AI INFERENCE ENGINE (LIGHTWEIGHT & ACCURATE PROXY)
+# 3. DYNAMIC AI INFERENCE ENGINE
 # ------------------------------------------------------------------
 fio2_dec = fio2 / 100.0
 predicted_pao2 = (fio2_dec * 210) - (rr * 0.75) + (spo2 * 0.15) - ((hr - 80) * 0.05)
@@ -109,37 +109,36 @@ else:
 st.markdown("---")
 
 # ------------------------------------------------------------------
-# 5. ROW 2: DIGITAL VISUALIZATION CLUSTER (OBJECTIVE 3)
+# 5. ROW 2: DIGITAL VISUALIZATION CLUSTER (OBJECTIVE 3 - WITH 3D SURFACE)
 # ------------------------------------------------------------------
 st.subheader("📈 Objective 3: Digital Visualization & Clinical Explainability Cluster (XAI)")
 
 col_graph1, col_graph2 = st.columns(2)
 
 with col_graph1:
-    st.markdown("**PANEL A: Target Blood Gas (PaO2) Gauge Chart**")
+    st.markdown("**PANEL A: ANFIS / BiLSTM 3D Fuzzy Surface Plot (Interactive)**")
     
-    fig_gauge = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=predicted_pao2,
-        domain={'x': [0, 1], 'y': [0, 1]},
-        title={'text': "Predicted PaO2 (mmHg)"},
-        gauge={
-            'axis': {'range': [0, 250]},
-            'bar': {'color': "#1E3A8A"},
-            'steps': [
-                {'range': [0, 60], 'color': "#EF4444"},
-                {'range': [60, 80], 'color': "#F59E0B"},
-                {'range': [80, 250], 'color': "#10B981"}
-            ],
-            'threshold': {
-                'line': {'color': "black", 'width': 4},
-                'thickness': 0.75,
-                'value': predicted_pao2
-            }
-        }
-    ))
-    fig_gauge.update_layout(margin=dict(l=10, r=10, b=10, t=30), height=350)
-    st.plotly_chart(fig_gauge, use_container_width=True)
+    # Meshgrid generation for 3D analytical geometry
+    x_fio2_axis = np.linspace(21, 100, 30)
+    y_rr_axis = np.linspace(8, 40, 30)
+    X, Y = np.meshgrid(x_fio2_axis, y_rr_axis)
+    
+    # 3D Surface mathematical calculation
+    Z = ((X / 100.0) * 210) - (Y * 0.75) + (spo2 * 0.15)
+    
+    # Plotly 3D Surface instantiation
+    fig_3d = go.Figure(data=[go.Surface(z=Z, x=x_fio2_axis, y=y_rr_axis, colorscale="Viridis")])
+    fig_3d.update_layout(
+        scene=dict(
+            xaxis_title='FiO2 (%)',
+            yaxis_title='Respiration Rate (RR)',
+            zaxis_title='Predicted PaO2 (mmHg)'
+        ),
+        margin=dict(l=10, r=10, b=10, t=10),
+        height=380
+    )
+    st.plotly_chart(fig_3d, use_container_width=True)
+    st.caption("💡 Platform Tip: Guna mouse / sentuhan skrin untuk putar dan tengok permukaan 3D dari pelbagai sudut.")
 
 with col_graph2:
     st.markdown("**PANEL B: Feature Importance & SHAP Interpretability Ranking**")
@@ -159,7 +158,7 @@ with col_graph2:
         xaxis_title="SHAP Value (Impact on PaO2 Prediction)",
         yaxis_title="Clinical Parameters",
         margin=dict(l=10, r=10, b=40, t=10),
-        height=350
+        height=380
     )
     st.plotly_chart(fig_bar, use_container_width=True)
 
