@@ -157,65 +157,49 @@ st.markdown("""
     }
     
     /* ============================================ */
-    /* CUSTOM TAB NAVIGATION - Elegant Pills Style */
+    /* STREAMLIT NATIVE TABS - Custom Styling */
     /* ============================================ */
-    div[data-testid="stRadio"] > label {
-        display: none;
-    }
-    
-    div[data-testid="stRadio"] > div[role="radiogroup"] {
-        display: flex;
-        flex-direction: row;
+    .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background: rgba(30, 58, 138, 0.15);
         backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
         padding: 8px;
         border-radius: 14px;
         border: 1px solid rgba(96, 165, 250, 0.2);
-        margin-bottom: 25px;
         box-shadow: 0 4px 15px rgba(30, 58, 138, 0.1);
     }
     
-    div[data-testid="stRadio"] > div[role="radiogroup"] > label {
-        flex: 1;
+    .stTabs [data-baseweb="tab"] {
+        height: 48px;
+        padding: 0 24px;
         background: transparent;
-        padding: 12px 20px;
         border-radius: 10px;
-        text-align: center;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        border: 1px solid transparent;
         color: #93C5FD;
         font-weight: 600;
         font-size: 14px;
+        border: 1px solid transparent;
+        transition: all 0.3s ease;
     }
     
-    div[data-testid="stRadio"] > div[role="radiogroup"] > label:hover {
+    .stTabs [data-baseweb="tab"]:hover {
         background: rgba(59, 130, 246, 0.15);
         border-color: rgba(96, 165, 250, 0.3);
-        transform: translateY(-1px);
+        color: #DBEAFE;
     }
     
-    div[data-testid="stRadio"] > div[role="radiogroup"] > label[data-checked="true"] {
-        background: linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%);
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%) !important;
         color: white !important;
         box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
-        border-color: rgba(147, 197, 253, 0.5);
+        border-color: rgba(147, 197, 253, 0.5) !important;
     }
     
-    div[data-testid="stRadio"] > div[role="radiogroup"] > label > div:first-child {
-        display: none;
+    .stTabs [data-baseweb="tab-highlight"] {
+        background-color: transparent !important;
     }
     
-    div[data-testid="stRadio"] > div[role="radiogroup"] > label > div:last-child {
-        color: inherit !important;
-        font-weight: 600;
-    }
-    
-    /* Hide radio circle */
-    div[data-testid="stRadio"] input[type="radio"] {
-        display: none;
+    .stTabs [data-baseweb="tab-border"] {
+        display: none !important;
     }
     
     /* Sidebar */
@@ -285,18 +269,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
-# 2. TOP NAVIGATION TABS (below header)
-# ------------------------------------------------------------------
-page = st.radio(
-    "Navigation",
-    ["📊 Section 1 · Predictions", "📈 Section 2 · Visualizations", "📋 Section 3 · Performance"],
-    horizontal=True,
-    label_visibility="collapsed",
-    key="nav_tabs"
-)
-
-# ------------------------------------------------------------------
-# 3. SIDEBAR INPUTS
+# 2. SIDEBAR INPUTS
 # ------------------------------------------------------------------
 st.sidebar.markdown("## 🩸 Baseline ABG (Hour 0)")
 st.sidebar.caption("First blood draw upon ICU admission")
@@ -336,7 +309,7 @@ st.sidebar.markdown("---")
 st.sidebar.info("🎯 **Clinical Goal:** Reduce routine invasive blood sampling from 8 times/day (every 3h) down to targeted draws only.")
 
 # ------------------------------------------------------------------
-# 4. FORECASTING ENGINE
+# 3. FORECASTING ENGINE
 # ------------------------------------------------------------------
 hours = [0, 3, 6, 9, 12, 15, 18, 21, 24]
 fio2_dec = fio2 / 100.0
@@ -354,11 +327,16 @@ critical_sampling_hours = [hours[i] for i in range(len(hours))
                           if pao2_trajectory[i] < 70 or ph_trajectory[i] < 7.30 or lactate_trajectory[i] > 3.0]
 
 # ------------------------------------------------------------------
-# 5. PAGE ROUTING
+# 4. TABS NAVIGATION (below header)
 # ------------------------------------------------------------------
+tab1, tab2, tab3 = st.tabs([
+    "📊  Section 1 · Predictions",
+    "📈  Section 2 · Visualizations",
+    "📋  Section 3 · Performance"
+])
 
-# ============ SECTION 1: PREDICTIONS ============
-if page == "📊 Section 1 · Predictions":
+# ============ TAB 1: PREDICTIONS ============
+with tab1:
     st.markdown('<div class="section-header">📊 Section 1 · Real-Time Predictions & Sampling Alert</div>', unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns(3)
@@ -417,8 +395,8 @@ if page == "📊 Section 1 · Predictions":
             </div>
         ''', unsafe_allow_html=True)
 
-# ============ SECTION 2: VISUALIZATIONS ============
-elif page == "📈 Section 2 · Visualizations":
+# ============ TAB 2: VISUALIZATIONS ============
+with tab2:
     st.markdown('<div class="section-header">📈 Section 2 · Digital Visualization & Clinical Explainability (XAI)</div>', unsafe_allow_html=True)
 
     col_vis1, col_vis2, col_vis3 = st.columns([1.2, 1, 1])
@@ -549,8 +527,8 @@ elif page == "📈 Section 2 · Visualizations":
         )
         st.plotly_chart(fig_bar, use_container_width=True)
 
-# ============ SECTION 3: PERFORMANCE ============
-elif page == "📋 Section 3 · Performance":
+# ============ TAB 3: PERFORMANCE ============
+with tab3:
     st.markdown('<div class="section-header">📋 Section 3 · Continuous Model Accuracy Benchmarking</div>', unsafe_allow_html=True)
 
     metrics_data = {
@@ -579,7 +557,7 @@ elif page == "📋 Section 3 · Performance":
 # ------------------------------------------------------------------
 st.markdown("""
     <div class="footer">
-        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 2.4 ·
+        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 2.5 ·
         © 2024 Faculty of Electrical Engineering, UiTM Pasir Gudang<br>
         For clinical decision support only — always verify with attending physician.
     </div>
