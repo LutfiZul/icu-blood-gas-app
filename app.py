@@ -31,7 +31,7 @@ st.markdown("""
         border-radius: 14px;
         color: white;
         text-align: center;
-        margin-bottom: 25px;
+        margin-bottom: 20px;
         box-shadow: 0 8px 25px rgba(30, 58, 138, 0.4);
         position: relative;
         overflow: hidden;
@@ -156,6 +156,68 @@ st.markdown("""
         letter-spacing: -0.2px;
     }
     
+    /* ============================================ */
+    /* CUSTOM TAB NAVIGATION - Elegant Pills Style */
+    /* ============================================ */
+    div[data-testid="stRadio"] > label {
+        display: none;
+    }
+    
+    div[data-testid="stRadio"] > div[role="radiogroup"] {
+        display: flex;
+        flex-direction: row;
+        gap: 8px;
+        background: rgba(30, 58, 138, 0.15);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        padding: 8px;
+        border-radius: 14px;
+        border: 1px solid rgba(96, 165, 250, 0.2);
+        margin-bottom: 25px;
+        box-shadow: 0 4px 15px rgba(30, 58, 138, 0.1);
+    }
+    
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label {
+        flex: 1;
+        background: transparent;
+        padding: 12px 20px;
+        border-radius: 10px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: 1px solid transparent;
+        color: #93C5FD;
+        font-weight: 600;
+        font-size: 14px;
+    }
+    
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label:hover {
+        background: rgba(59, 130, 246, 0.15);
+        border-color: rgba(96, 165, 250, 0.3);
+        transform: translateY(-1px);
+    }
+    
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label[data-checked="true"] {
+        background: linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%);
+        color: white !important;
+        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+        border-color: rgba(147, 197, 253, 0.5);
+    }
+    
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label > div:first-child {
+        display: none;
+    }
+    
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label > div:last-child {
+        color: inherit !important;
+        font-weight: 600;
+    }
+    
+    /* Hide radio circle */
+    div[data-testid="stRadio"] input[type="radio"] {
+        display: none;
+    }
+    
     /* Sidebar */
     section[data-testid="stSidebar"] {
         background: linear-gradient(180deg, rgba(30, 58, 138, 0.15) 0%, rgba(15, 23, 42, 0.05) 100%);
@@ -223,17 +285,19 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
-# 2. SIDEBAR - NAVIGATION MENU + INPUTS
+# 2. TOP NAVIGATION TABS (below header)
 # ------------------------------------------------------------------
-st.sidebar.markdown("## 🧭 Navigation")
-
-page = st.sidebar.radio(
-    "Select Section:",
+page = st.radio(
+    "Navigation",
     ["📊 Section 1 · Predictions", "📈 Section 2 · Visualizations", "📋 Section 3 · Performance"],
-    label_visibility="collapsed"
+    horizontal=True,
+    label_visibility="collapsed",
+    key="nav_tabs"
 )
 
-st.sidebar.markdown("---")
+# ------------------------------------------------------------------
+# 3. SIDEBAR INPUTS
+# ------------------------------------------------------------------
 st.sidebar.markdown("## 🩸 Baseline ABG (Hour 0)")
 st.sidebar.caption("First blood draw upon ICU admission")
 
@@ -272,7 +336,7 @@ st.sidebar.markdown("---")
 st.sidebar.info("🎯 **Clinical Goal:** Reduce routine invasive blood sampling from 8 times/day (every 3h) down to targeted draws only.")
 
 # ------------------------------------------------------------------
-# 3. FORECASTING ENGINE
+# 4. FORECASTING ENGINE
 # ------------------------------------------------------------------
 hours = [0, 3, 6, 9, 12, 15, 18, 21, 24]
 fio2_dec = fio2 / 100.0
@@ -290,7 +354,7 @@ critical_sampling_hours = [hours[i] for i in range(len(hours))
                           if pao2_trajectory[i] < 70 or ph_trajectory[i] < 7.30 or lactate_trajectory[i] > 3.0]
 
 # ------------------------------------------------------------------
-# 4. PAGE ROUTING
+# 5. PAGE ROUTING
 # ------------------------------------------------------------------
 
 # ============ SECTION 1: PREDICTIONS ============
@@ -511,11 +575,11 @@ elif page == "📋 Section 3 · Performance":
     st.table(pd.DataFrame(metrics_data))
 
 # ------------------------------------------------------------------
-# 5. FOOTER
+# 6. FOOTER
 # ------------------------------------------------------------------
 st.markdown("""
     <div class="footer">
-        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 2.3 ·
+        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 2.4 ·
         © 2024 Faculty of Electrical Engineering, UiTM Pasir Gudang<br>
         For clinical decision support only — always verify with attending physician.
     </div>
