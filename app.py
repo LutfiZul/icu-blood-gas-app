@@ -219,7 +219,7 @@ st.markdown("""
         color: #64748B;
         font-size: 12px;
         margin-top: 30px;
-        margin-bottom: 50px;
+        margin-bottom: 90px; /* Ruang ekstra untuk butang bawah */
         border-top: 1px solid rgba(59, 130, 246, 0.2);
     }
     </style>
@@ -528,7 +528,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
-# 5. INTEGRASI BUTANG TERAPUNG: "NEX GLOW ORB" (DEAD CENTER & SCROLL-LOCK)
+# 5. INTEGRASI BUTANG TERAPUNG: "NEX GLOW ORB" (BOTTOM-CENTER & SCROLL-LOCK)
 # ------------------------------------------------------------------
 telemetry_payload = {
     "pao2_24h": pao2_trajectory[-1],
@@ -555,7 +555,7 @@ floating_orb_script = f"""
         existing.remove();
     }}
 
-    // 1. Suntik Gaya CSS Terkunci di Tengah Skrin (Absolute Screen Center & Scroll-Lock)
+    // 1. Suntik Gaya CSS Terkunci di Tengah Bahagian Bawah Skrin (Bottom-Center & Scroll-Lock)
     const styleId = 'nex-floating-style';
     let style = parentDoc.getElementById(styleId);
     if (!style) {{
@@ -567,14 +567,14 @@ floating_orb_script = f"""
     style.innerHTML = `
         #nex-floating-root {{
             position: fixed !important;
-            top: 50% !important;
+            bottom: 24px !important;
             left: 50% !important;
-            transform: translate(-50%, -50%) !important;
+            transform: translateX(-50%) !important;
             z-index: 9999999 !important;
             display: flex !important;
             flex-direction: column !important;
             align-items: center !important;
-            justify-content: center !important;
+            justify-content: flex-end !important;
             pointer-events: none !important;
             font-family: 'Inter', -apple-system, sans-serif !important;
         }}
@@ -582,7 +582,7 @@ floating_orb_script = f"""
         .nex-bubble-container {{
             pointer-events: auto !important;
             display: none;
-            max-width: 380px;
+            max-width: 420px;
             background: rgba(15, 23, 42, 0.95);
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
@@ -593,18 +593,18 @@ floating_orb_script = f"""
             border-radius: 16px;
             font-size: 13px;
             line-height: 1.5;
-            margin-bottom: 18px;
+            margin-bottom: 14px;
             text-align: center;
-            animation: nexCenterPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            animation: nexBottomPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
         }}
 
         .nex-orb-button {{
             pointer-events: auto !important;
-            width: 74px;
-            height: 74px;
+            width: 68px;
+            height: 68px;
             border-radius: 50%;
             background: radial-gradient(circle at 35% 35%, #38BDF8 0%, #2563EB 55%, #0F172A 100%);
-            box-shadow: 0 0 30px rgba(56, 189, 248, 0.7), 0 0 60px rgba(37, 99, 235, 0.45);
+            box-shadow: 0 0 25px rgba(56, 189, 248, 0.7), 0 0 50px rgba(37, 99, 235, 0.4);
             border: 2.5px solid rgba(255, 255, 255, 0.4);
             cursor: pointer;
             display: flex;
@@ -616,8 +616,8 @@ floating_orb_script = f"""
         }}
 
         .nex-orb-button:hover {{
-            transform: scale(1.12);
-            box-shadow: 0 0 40px rgba(56, 189, 248, 0.9), 0 0 75px rgba(37, 99, 235, 0.65);
+            transform: scale(1.1);
+            box-shadow: 0 0 35px rgba(56, 189, 248, 0.9), 0 0 70px rgba(37, 99, 235, 0.6);
         }}
 
         .nex-pulse-ring {{
@@ -631,41 +631,41 @@ floating_orb_script = f"""
         }}
 
         .nex-orb-button.listening .nex-pulse-ring {{
-            animation: centerPulse 1.6s infinite ease-out;
+            animation: bottomPulse 1.6s infinite ease-out;
         }}
 
         .nex-orb-button.listening {{
             background: radial-gradient(circle at 35% 35%, #F43F5E 0%, #E11D48 55%, #881337 100%);
-            box-shadow: 0 0 45px rgba(244, 63, 94, 0.9);
+            box-shadow: 0 0 40px rgba(244, 63, 94, 0.9);
             border-color: rgba(255, 255, 255, 0.8);
         }}
 
         .nex-subtext {{
-            margin-top: 10px;
+            margin-top: 8px;
             font-size: 11px;
             font-weight: 700;
             color: #93C5FD;
             letter-spacing: 0.8px;
             text-shadow: 0 2px 6px rgba(0,0,0,0.9);
             pointer-events: none;
-            background: rgba(15, 23, 42, 0.6);
-            padding: 3px 10px;
+            background: rgba(15, 23, 42, 0.75);
+            padding: 3px 12px;
             border-radius: 20px;
-            border: 1px solid rgba(56, 189, 248, 0.2);
+            border: 1px solid rgba(56, 189, 248, 0.3);
         }}
 
-        @keyframes centerPulse {{
+        @keyframes bottomPulse {{
             0% {{ transform: scale(1); opacity: 0.85; }}
-            100% {{ transform: scale(2.3); opacity: 0; }}
+            100% {{ transform: scale(2.2); opacity: 0; }}
         }}
 
-        @keyframes nexCenterPop {{
-            from {{ opacity: 0; transform: scale(0.9) translateY(10px); }}
-            to {{ opacity: 1; transform: scale(1) translateY(0); }}
+        @keyframes nexBottomPop {{
+            from {{ opacity: 0; transform: translateY(12px) scale(0.95); }}
+            to {{ opacity: 1; transform: translateY(0) scale(1); }}
         }}
     `;
 
-    // 2. Cipta Elemen Terapung Bebas
+    // 2. Cipta Elemen Terapung
     const root = parentDoc.createElement('div');
     root.id = 'nex-floating-root';
     root.innerHTML = `
@@ -676,7 +676,7 @@ floating_orb_script = f"""
 
         <button id="nexOrbTrigger" class="nex-orb-button" title="Tap to talk to NEX">
             <div class="nex-pulse-ring"></div>
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                 <line x1="12" y1="19" x2="12" y2="22"></line>
@@ -710,7 +710,7 @@ floating_orb_script = f"""
         const q = query.toLowerCase();
         if (q.includes("status") || q.includes("briefing") || q.includes("update") || q.includes("patient")) {{
             if (telemetry.critical_hours.length > 0) {{
-                return "Good day, Doctor. Critical trajectories detected. PaO2 reaches " + telemetry.pao2_24h + 
+                return "Good day, Doctor. Critical trajectories detected. PaO2 is at " + telemetry.pao2_24h + 
                        " mmHg while serum lactate spikes to " + telemetry.lactate_24h + " mmol/L. Targeted blood draw required at Hour " + 
                        telemetry.critical_hours.join(", ") + ".";
             }} else {{
@@ -789,5 +789,5 @@ floating_orb_script = f"""
 </script>
 """
 
-# Suntik terus ke DOM induk tanpa mengambil ruang paparan
+# Suntik terus ke parent DOM
 components.html(floating_orb_script, height=0)
