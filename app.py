@@ -416,7 +416,7 @@ with col_vis1:
     )
     st.plotly_chart(fig_line, use_container_width=True)
 
-# --- PANEL B ---
+# --- PANEL B: ANFIS 3D SURFACE (WARNA ASAL - VIRIDIS) ---
 with col_vis2:
     st.markdown("**PANEL B: ANFIS 3D Fuzzy Surface Plot**")
 
@@ -427,11 +427,12 @@ with col_vis2:
 
     fig_3d = go.Figure(data=[go.Surface(
         z=Z, x=x_axis, y=y_axis,
-        colorscale=[[0, '#1E3A8A'], [0.25, '#3B82F6'], [0.5, '#60A5FA'],
-                    [0.75, '#93C5FD'], [1, '#DBEAFE']],
-        colorbar=dict(title=dict(text="PaO2", font=dict(color=FONT, size=11)),
-                     thickness=12, len=0.7,
-                     tickfont=dict(size=10, color=FONT))
+        colorscale="Viridis",  # ← WARNA ASAL (hijau-kuning-ungu)
+        colorbar=dict(
+            title=dict(text="PaO2", font=dict(color=FONT, size=11)),
+            thickness=12, len=0.7,
+            tickfont=dict(size=10, color=FONT)
+        )
     )])
     fig_3d.update_layout(
         scene=dict(
@@ -517,7 +518,7 @@ st.table(pd.DataFrame(metrics_data))
 # ------------------------------------------------------------------
 st.markdown("""
     <div class="footer">
-        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 2.6 ·
+        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 2.7 ·
         © 2024 Faculty of Electrical Engineering, UiTM Pasir Gudang<br>
         For clinical decision support only — always verify with attending physician.
     </div>
