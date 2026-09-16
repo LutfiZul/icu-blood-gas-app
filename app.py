@@ -10,7 +10,7 @@ import time
 # ------------------------------------------------------------------
 st.set_page_config(
     page_title="CDSS - ICU Blood Gas Predictor",
-    page_title_icon="🩺",
+    page_icon="🩺",
     layout="wide",
     initial_sidebar_state="expanded"
 )
