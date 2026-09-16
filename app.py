@@ -219,7 +219,7 @@ st.markdown("""
         color: #64748B;
         font-size: 12px;
         margin-top: 30px;
-        margin-bottom: 90px; /* Ruang ekstra untuk butang bawah */
+        margin-bottom: 90px;
         border-top: 1px solid rgba(59, 130, 246, 0.2);
     }
     </style>
@@ -234,14 +234,69 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
-# 2. SIDEBAR INPUTS
+# 2. SIDEBAR INPUTS & FILE UPLOADER
 # ------------------------------------------------------------------
+st.sidebar.markdown("## 📁 Ingest ICU Patient Record")
+st.sidebar.caption("Upload clinical telemetry file (.csv or .xlsx)")
+
+uploaded_file = st.sidebar.file_uploader(
+    "Choose a file", 
+    type=["csv", "xlsx", "xls"],
+    help="Upload patient baseline and mechanical ventilation telemetry data."
+)
+
+# Nilai asal (Default)
+def_ph_0 = 7.38
+def_pao2_0 = 95.0
+def_lactate_0 = 1.8
+def_hr = 85
+def_spo2 = 96
+def_rr = 18
+def_fio2 = 40
+
+# Ekstrak data jika fail dimuat naik
+if uploaded_file is not None:
+    try:
+        if uploaded_file.name.endswith(".csv"):
+            df_uploaded = pd.read_csv(uploaded_file)
+        else:
+            df_uploaded = pd.read_excel(uploaded_file)
+            
+        st.sidebar.success(f"Loaded: `{uploaded_file.name}` ({len(df_uploaded)} records)")
+        
+        # Mapping nama kolum (case-insensitive)
+        col_map = {c.lower().strip(): c for c in df_uploaded.columns}
+        
+        def get_val(keys, default_val):
+            for k in keys:
+                if k in col_map:
+                    try:
+                        return float(df_uploaded[col_map[k]].iloc[0])
+                    except:
+                        pass
+            return default_val
+
+        def_ph_0 = get_val(['ph_0', 'ph', 'baseline_ph'], def_ph_0)
+        def_pao2_0 = get_val(['pao2_0', 'pao2', 'baseline_pao2'], def_pao2_0)
+        def_lactate_0 = get_val(['lactate_0', 'lactate', 'baseline_lactate', 'lac'], def_lactate_0)
+        def_hr = int(get_val(['hr', 'heart_rate', 'heartrate'], def_hr))
+        def_spo2 = int(get_val(['spo2', 'sp_o2', 'saturation'], def_spo2))
+        def_rr = int(get_val(['rr', 'respiration_rate', 'resp_rate'], def_rr))
+        def_fio2 = int(get_val(['fio2', 'fi_o2'], def_fio2))
+        
+        with st.sidebar.expander("🔍 View Raw File Preview", expanded=False):
+            st.dataframe(df_uploaded.head(5), use_container_width=True)
+            
+    except Exception as e:
+        st.sidebar.error(f"Error parsing file: {e}")
+
+st.sidebar.markdown("---")
 st.sidebar.markdown("## 🩸 Baseline ABG (Hour 0)")
 st.sidebar.caption("First blood draw upon ICU admission")
 
-ph_0 = st.sidebar.number_input("Baseline pH (Hour 0)", 6.80, 7.80, 7.38, 0.01)
-pao2_0 = st.sidebar.number_input("Baseline PaO2 (mmHg)", 40.0, 300.0, 95.0, 1.0)
-lactate_0 = st.sidebar.number_input("Baseline Lactate (mmol/L)", 0.5, 15.0, 1.8, 0.1)
+ph_0 = st.sidebar.number_input("Baseline pH (Hour 0)", 6.80, 7.80, float(def_ph_0), 0.01)
+pao2_0 = st.sidebar.number_input("Baseline PaO2 (mmHg)", 40.0, 300.0, float(def_pao2_0), 1.0)
+lactate_0 = st.sidebar.number_input("Baseline Lactate (mmol/L)", 0.5, 15.0, float(def_lactate_0), 0.1)
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("## 🎛️ Dynamic Ventilator Settings")
@@ -249,14 +304,18 @@ st.sidebar.markdown("## 🎛️ Dynamic Ventilator Settings")
 def synced_input(label, min_val, max_val, default, step, key_prefix):
     slider_key = f"{key_prefix}_slider"
     num_key = f"{key_prefix}_num"
-    if slider_key not in st.session_state:
+    
+    # Reset state jika nilai default berbeza (contohnya selepas upload fail baru)
+    if slider_key not in st.session_state or st.session_state.get(f"{key_prefix}_last_def") != default:
         st.session_state[slider_key] = default
-    if num_key not in st.session_state:
         st.session_state[num_key] = default
+        st.session_state[f"{key_prefix}_last_def"] = default
+        
     def update_slider():
         st.session_state[slider_key] = st.session_state[num_key]
     def update_num():
         st.session_state[num_key] = st.session_state[slider_key]
+        
     c1, c2 = st.sidebar.columns([2.5, 1.2])
     with c1:
         val = st.slider(label, min_val, max_val, key=slider_key, on_change=update_num, step=step)
@@ -265,10 +324,10 @@ def synced_input(label, min_val, max_val, default, step, key_prefix):
                        on_change=update_slider, label_visibility="hidden", step=step)
     return val
 
-hr = synced_input("Heart Rate (HR - BPM)", 40, 160, 85, 1, "hr")
-spo2 = synced_input("SpO2 (%)", 70, 100, 96, 1, "spo2")
-rr = synced_input("Respiration Rate (RR - bpm)", 8, 40, 18, 1, "rr")
-fio2 = synced_input("FiO2 (%)", 21, 100, 40, 1, "fio2")
+hr = synced_input("Heart Rate (HR - BPM)", 40, 160, int(def_hr), 1, "hr")
+spo2 = synced_input("SpO2 (%)", 70, 100, int(def_spo2), 1, "spo2")
+rr = synced_input("Respiration Rate (RR - bpm)", 8, 40, int(def_rr), 1, "rr")
+fio2 = synced_input("FiO2 (%)", 21, 100, int(def_fio2), 1, "fio2")
 
 st.sidebar.markdown("---")
 st.sidebar.info("🎯 **Clinical Goal:** Reduce routine invasive blood sampling from 8 times/day (every 3h) down to targeted draws only.")
@@ -555,7 +614,7 @@ floating_orb_script = f"""
         existing.remove();
     }}
 
-    // 1. Suntik Gaya CSS Terkunci di Tengah Bahagian Bawah Skrin (Bottom-Center & Scroll-Lock)
+    // 1. Suntik Gaya CSS Terkunci di Tengah Bahagian Bawah Skrin
     const styleId = 'nex-floating-style';
     let style = parentDoc.getElementById(styleId);
     if (!style) {{
