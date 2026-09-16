@@ -76,7 +76,7 @@ st.markdown("""
         z-index: 1;
     }
     
-    /* Glassmorphism Metric Cards - Blue Transparent */
+    /* Glassmorphism Metric Cards */
     .metric-card {
         background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(30, 58, 138, 0.20) 100%);
         backdrop-filter: blur(10px);
@@ -119,7 +119,7 @@ st.markdown("""
     .metric-delta-pos { color: #6EE7B7; font-size: 12px; font-weight: 600; }
     .metric-delta-neg { color: #FCA5A5; font-size: 12px; font-weight: 600; }
     
-    /* Status Alerts - Transparent Blue */
+    /* Status Alerts */
     .status-stable {
         background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.10) 100%);
         backdrop-filter: blur(8px);
@@ -156,7 +156,7 @@ st.markdown("""
         letter-spacing: -0.2px;
     }
     
-    /* Sidebar - Blue tinted */
+    /* Sidebar */
     section[data-testid="stSidebar"] {
         background: linear-gradient(180deg, rgba(30, 58, 138, 0.15) 0%, rgba(15, 23, 42, 0.05) 100%);
         border-right: 1px solid rgba(59, 130, 246, 0.15);
@@ -167,7 +167,7 @@ st.markdown("""
         font-weight: 700;
     }
     
-    /* Table - Transparent Blue */
+    /* Table */
     .stTable table {
         border-radius: 12px;
         overflow: hidden;
@@ -281,9 +281,9 @@ critical_sampling_hours = [hours[i] for i in range(len(hours))
                           if pao2_trajectory[i] < 70 or ph_trajectory[i] < 7.30 or lactate_trajectory[i] > 3.0]
 
 # ------------------------------------------------------------------
-# 4. ROW 1: PREDICTIONS
+# 4. SECTION 1: PREDICTIONS
 # ------------------------------------------------------------------
-st.markdown('<div class="section-header">📊 Objective 1 · Real-Time Predictions & Sampling Alert</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-header">📊 Section 1 · Real-Time Predictions & Sampling Alert</div>', unsafe_allow_html=True)
 
 col1, col2, col3 = st.columns(3)
 
@@ -344,13 +344,12 @@ else:
 st.markdown("---")
 
 # ------------------------------------------------------------------
-# 5. ROW 2: VISUALIZATIONS
+# 5. SECTION 2: VISUALIZATIONS
 # ------------------------------------------------------------------
-st.markdown('<div class="section-header">📈 Objective 3 · Digital Visualization & Clinical Explainability (XAI)</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-header">📈 Section 2 · Digital Visualization & Clinical Explainability (XAI)</div>', unsafe_allow_html=True)
 
 col_vis1, col_vis2, col_vis3 = st.columns([1.2, 1, 1])
 
-# Dark-mode friendly chart colors
 BLUE = '#60A5FA'
 GREEN = '#34D399'
 AMBER = '#FBBF24'
@@ -480,9 +479,9 @@ with col_vis3:
 st.markdown("---")
 
 # ------------------------------------------------------------------
-# 6. ROW 3: PERFORMANCE METRICS
+# 6. SECTION 3: PERFORMANCE METRICS
 # ------------------------------------------------------------------
-st.markdown('<div class="section-header">📋 Objective 2 · Continuous Model Accuracy Benchmarking</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-header">📋 Section 3 · Continuous Model Accuracy Benchmarking</div>', unsafe_allow_html=True)
 
 metrics_data = {
     "Algorithm Architecture": [
