@@ -1,7 +1,9 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import json
 
 # ------------------------------------------------------------------
 # 1. PAGE SETUP
@@ -217,6 +219,7 @@ st.markdown("""
         color: #64748B;
         font-size: 12px;
         margin-top: 30px;
+        margin-bottom: 70px; /* Space for the bottom orb */
         border-top: 1px solid rgba(59, 130, 246, 0.2);
     }
     </style>
@@ -409,14 +412,14 @@ with col_vis1:
         paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color=FONT, size=11, family='Inter'),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
-                   font=dict(size=10, color=FONT), bgcolor='rgba(0,0,0,0)'),
+                    font=dict(size=10, color=FONT), bgcolor='rgba(0,0,0,0)'),
         hovermode='x unified',
         xaxis=dict(gridcolor=GRID, linecolor=GRID, color=FONT),
         yaxis=dict(gridcolor=GRID, linecolor=GRID, color=FONT)
     )
     st.plotly_chart(fig_line, use_container_width=True)
 
-# --- PANEL B: ANFIS 3D SURFACE (WARNA ASAL - VIRIDIS) ---
+# --- PANEL B: ANFIS 3D SURFACE ---
 with col_vis2:
     st.markdown("**PANEL B: ANFIS 3D Fuzzy Surface Plot**")
 
@@ -427,7 +430,7 @@ with col_vis2:
 
     fig_3d = go.Figure(data=[go.Surface(
         z=Z, x=x_axis, y=y_axis,
-        colorscale="Viridis",  # ← WARNA ASAL (hijau-kuning-ungu)
+        colorscale="Viridis",
         colorbar=dict(
             title=dict(text="PaO2", font=dict(color=FONT, size=11)),
             thickness=12, len=0.7,
@@ -523,3 +526,287 @@ st.markdown("""
         For clinical decision support only — always verify with attending physician.
     </div>
 """, unsafe_allow_html=True)
+
+# ------------------------------------------------------------------
+# 5. INTEGRASI BUTANG SIRI-STYLE: "NEX GLOW ORB" (BOTTOM CENTER)
+# ------------------------------------------------------------------
+# Data telemetri disiapkan untuk dihantar kepada NEX
+telemetry_payload = {
+    "pao2_24h": pao2_trajectory[-1],
+    "ph_24h": ph_trajectory[-1],
+    "lactate_24h": lactate_trajectory[-1],
+    "critical_hours": critical_sampling_hours,
+    "fio2": fio2,
+    "rr": rr,
+    "spo2": spo2,
+    "hr": hr
+}
+
+telemetry_json = json.dumps(telemetry_payload)
+
+# Komponen HTML / CSS / JS untuk Siri Orb
+siri_orb_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+    /* Container Terapung di Bawah Tengah */
+    .nex-wrapper {{
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 999999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        font-family: 'Inter', -apple-system, sans-serif;
+    }}
+
+    /* Kotak Dialog Pop-up Transkrip Jawapan */
+    .nex-bubble {{
+        display: none;
+        max-width: 420px;
+        background: rgba(15, 23, 42, 0.92);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        border: 1px solid rgba(56, 189, 248, 0.4);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.25);
+        color: #F8FAFC;
+        padding: 14px 18px;
+        border-radius: 16px;
+        font-size: 13px;
+        line-height: 1.5;
+        margin-bottom: 16px;
+        text-align: center;
+        animation: fadeIn 0.3s ease forwards;
+    }}
+
+    .nex-bubble-title {{
+        color: #38BDF8;
+        font-weight: 700;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 4px;
+    }}
+
+    /* Butang Siri Orb Bulat */
+    .nex-orb-btn {{
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 35% 35%, #38BDF8 0%, #2563EB 50%, #0F172A 100%);
+        box-shadow: 0 0 25px rgba(56, 189, 248, 0.6), 0 0 50px rgba(37, 99, 235, 0.35);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        outline: none;
+    }}
+
+    .nex-orb-btn:hover {{
+        transform: scale(1.08);
+        box-shadow: 0 0 35px rgba(56, 189, 248, 0.8), 0 0 60px rgba(37, 99, 235, 0.5);
+    }}
+
+    .nex-orb-btn:active {{
+        transform: scale(0.96);
+    }}
+
+    /* Gelombang Denyutan Siri (Pulse Rings) */
+    .nex-ring {{
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        border: 2px solid #38BDF8;
+        opacity: 0;
+        pointer-events: none;
+    }}
+
+    .nex-orb-btn.listening .nex-ring {{
+        animation: siriPulse 1.8s infinite ease-out;
+    }}
+
+    .nex-orb-btn.listening {{
+        background: radial-gradient(circle at 35% 35%, #F43F5E 0%, #E11D48 50%, #881337 100%);
+        box-shadow: 0 0 35px rgba(244, 63, 94, 0.8);
+        border-color: rgba(255, 255, 255, 0.6);
+    }}
+
+    @keyframes siriPulse {{
+        0% {{ transform: scale(1); opacity: 0.8; }}
+        100% {{ transform: scale(2.1); opacity: 0; }}
+    }}
+
+    @keyframes fadeIn {{
+        from {{ opacity: 0; transform: translateY(8px); }}
+        to {{ opacity: 1; transform: translateY(0); }}
+    }}
+
+    .nex-label {{
+        margin-top: 8px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #94A3B8;
+        letter-spacing: 0.5px;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    }}
+</style>
+</head>
+<body>
+
+<div class="nex-wrapper">
+    <!-- Pop-up Bubble Transkrip Jawapan -->
+    <div id="nexBubble" class="nex-bubble">
+        <div class="nex-bubble-title">⚡ NEX Clinical Copilot</div>
+        <div id="nexText">Initializing telemetry sync...</div>
+    </div>
+
+    <!-- Siri Orb Button -->
+    <button id="nexBtn" class="nex-orb-btn" title="Tap to talk with NEX">
+        <div class="nex-ring"></div>
+        <!-- Ikon Mikrofon Gelombang Dalam Orb -->
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="22"></line>
+        </svg>
+    </button>
+    <div id="nexStatus" class="nex-label">TAP TO TALK TO NEX</div>
+</div>
+
+<script>
+    const telemetry = {telemetry_json};
+    const btn = document.getElementById('nexBtn');
+    const bubble = document.getElementById('nexBubble');
+    const nexText = document.getElementById('nexText');
+    const nexStatus = document.getElementById('nexStatus');
+
+    let isListening = false;
+
+    // Enjin Suara Browser (TTS)
+    function nexSpeak(text) {{
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.05;
+        utterance.pitch = 0.95;
+
+        // Cuba cari suara berloghat British (JARVIS Persona)
+        const voices = window.speechSynthesis.getVoices();
+        const britishVoice = voices.find(v => v.lang === 'en-GB' || v.name.includes('UK') || v.name.includes('British'));
+        if (britishVoice) {{
+            utterance.voice = britishVoice;
+        }}
+
+        window.speechSynthesis.speak(utterance);
+    }}
+
+    // Penjana Maklum Balas Klinikal Pintar (Clinical Logic Reasoning)
+    function generateClinicalInsight(userQuery) {{
+        const q = userQuery.toLowerCase();
+        let reply = "";
+
+        if (q.includes("briefing") || q.includes("status") || q.includes("update") || q.includes("patient")) {{
+            if (telemetry.critical_hours.length > 0) {{
+                reply = "Good day, Doctor. The patient's 24-hour forecast indicates critical risks. PaO2 is at " + 
+                        telemetry.pao2_24h + " mmHg, with serum lactate elevating to " + telemetry.lactate_24h + 
+                        " mmol/L. Invasive arterial sampling is required at Hour " + telemetry.critical_hours.join(", ") + ".";
+            }} else {{
+                reply = "Good day, Doctor. Patient physiological trajectory is completely stable over the 24-hour horizon. PaO2 is projected at " + 
+                        telemetry.pao2_24h + " mmHg with normal lactate levels. All routine invasive draws may be safely deferred.";
+            }}
+        }} 
+        else if (q.includes("lactate") || q.includes("laktat")) {{
+            reply = "Serum lactate is projected to reach " + telemetry.lactate_24h + " mmol/L. The elevation correlates directly with ventilation settings and baseline perfusion.";
+        }} 
+        else if (q.includes("pao2") || q.includes("oxygen") || q.includes("oksigen")) {{
+            reply = "Predicted PaO2 at 24 hours is " + telemetry.pao2_24h + " mmHg under an FiO2 of " + telemetry.fio2 + " percent and respiration rate of " + telemetry.rr + " breaths per minute.";
+        }} 
+        else if (q.includes("who are you") || q.includes("siapa awak")) {{
+            reply = "I am NEX, your clinical decision intelligence core, monitoring real-time ICU ABG telemetry for this patient.";
+        }}
+        else {{
+            reply = "Telemetry synchronized, Doctor. Current 24-hour forecast: PaO2 is " + telemetry.pao2_24h + " mmHg, and Lactate is " + telemetry.lactate_24h + " mmol/L.";
+        }}
+
+        return reply;
+    }}
+
+    // Enjin Pengecaman Suara Browser (STT)
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (SpeechRecognition) {{
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.lang = 'en-US';
+
+        btn.onclick = () => {{
+            if (!isListening) {{
+                try {{
+                    recognition.start();
+                }} catch (e) {{
+                    console.log(e);
+                }}
+            }} else {{
+                recognition.stop();
+            }}
+        }};
+
+        recognition.onstart = () => {{
+            isListening = true;
+            btn.classList.add('listening');
+            nexStatus.innerText = "NEX IS LISTENING...";
+            nexStatus.style.color = "#F43F5E";
+            bubble.style.display = "block";
+            nexText.innerText = "Listening to clinical command...";
+        }};
+
+        recognition.onresult = (event) => {{
+            const transcript = event.results[0][0].transcript;
+            nexStatus.innerText = "PROCESSING...";
+            nexStatus.style.color = "#38BDF8";
+            
+            const response = generateClinicalInsight(transcript);
+            nexText.innerHTML = "<strong>You:</strong> \\"" + transcript + "\\" <br><br><strong>NEX:</strong> " + response;
+            
+            nexSpeak(response);
+        }};
+
+        recognition.onend = () => {{
+            isListening = false;
+            btn.classList.remove('listening');
+            nexStatus.innerText = "TAP TO TALK TO NEX";
+            nexStatus.style.color = "#94A3B8";
+        }};
+
+        recognition.onerror = () => {{
+            isListening = false;
+            btn.classList.remove('listening');
+            nexStatus.innerText = "TAP TO TALK TO NEX";
+            nexStatus.style.color = "#94A3B8";
+            nexText.innerText = "Unable to capture audio. Tap again to speak.";
+        }};
+    }} else {{
+        // Pelayar yang tidak menyokong Web Speech API akan memberikan taklimat automatik bila ditekan
+        btn.onclick = () => {{
+            bubble.style.display = "block";
+            const response = generateClinicalInsight("status");
+            nexText.innerHTML = "<strong>NEX Briefing:</strong> " + response;
+            nexSpeak(response);
+        }};
+    }}
+</script>
+
+</body>
+</html>
+"""
+
+# Paparkan komponen Siri Orb
+components.html(siri_orb_html, height=140)
