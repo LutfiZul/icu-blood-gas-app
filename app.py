@@ -31,7 +31,7 @@ st.markdown("""
         border-radius: 14px;
         color: white;
         text-align: center;
-        margin-bottom: 20px;
+        margin-bottom: 25px;
         box-shadow: 0 8px 25px rgba(30, 58, 138, 0.4);
         position: relative;
         overflow: hidden;
@@ -152,54 +152,9 @@ st.markdown("""
         padding: 10px 0;
         border-bottom: 2px solid rgba(59, 130, 246, 0.3);
         margin-bottom: 20px;
+        margin-top: 10px;
         display: inline-block;
         letter-spacing: -0.2px;
-    }
-    
-    /* ============================================ */
-    /* STREAMLIT NATIVE TABS - Custom Styling */
-    /* ============================================ */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background: rgba(30, 58, 138, 0.15);
-        backdrop-filter: blur(10px);
-        padding: 8px;
-        border-radius: 14px;
-        border: 1px solid rgba(96, 165, 250, 0.2);
-        box-shadow: 0 4px 15px rgba(30, 58, 138, 0.1);
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        height: 48px;
-        padding: 0 24px;
-        background: transparent;
-        border-radius: 10px;
-        color: #93C5FD;
-        font-weight: 600;
-        font-size: 14px;
-        border: 1px solid transparent;
-        transition: all 0.3s ease;
-    }
-    
-    .stTabs [data-baseweb="tab"]:hover {
-        background: rgba(59, 130, 246, 0.15);
-        border-color: rgba(96, 165, 250, 0.3);
-        color: #DBEAFE;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%) !important;
-        color: white !important;
-        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
-        border-color: rgba(147, 197, 253, 0.5) !important;
-    }
-    
-    .stTabs [data-baseweb="tab-highlight"] {
-        background-color: transparent !important;
-    }
-    
-    .stTabs [data-baseweb="tab-border"] {
-        display: none !important;
     }
     
     /* Sidebar */
@@ -246,6 +201,13 @@ st.markdown("""
         padding: 12px 16px;
         color: #CBD5E1;
         border-bottom: 1px solid rgba(59, 130, 246, 0.1);
+    }
+    
+    /* Divider */
+    .custom-divider {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.4), transparent);
+        margin: 35px 0;
     }
     
     /* Footer */
@@ -326,238 +288,236 @@ for h in hours:
 critical_sampling_hours = [hours[i] for i in range(len(hours))
                           if pao2_trajectory[i] < 70 or ph_trajectory[i] < 7.30 or lactate_trajectory[i] > 3.0]
 
-# ------------------------------------------------------------------
-# 4. TABS NAVIGATION (below header)
-# ------------------------------------------------------------------
-tab1, tab2, tab3 = st.tabs([
-    "📊  Section 1 · Predictions",
-    "📈  Section 2 · Visualizations",
-    "📋  Section 3 · Performance"
-])
+# ==================================================================
+# SECTION 1: PREDICTIONS
+# ==================================================================
+st.markdown('<div class="section-header">📊 Section 1 · Real-Time Predictions & Sampling Alert</div>', unsafe_allow_html=True)
 
-# ============ TAB 1: PREDICTIONS ============
-with tab1:
-    st.markdown('<div class="section-header">📊 Section 1 · Real-Time Predictions & Sampling Alert</div>', unsafe_allow_html=True)
+col1, col2, col3 = st.columns(3)
 
-    col1, col2, col3 = st.columns(3)
+with col1:
+    d = pao2_trajectory[-1] - pao2_0
+    arrow = "▲" if d >= 0 else "▼"
+    cls = "metric-delta-pos" if d >= 0 else "metric-delta-neg"
+    st.markdown(f'''
+        <div class="metric-card">
+            <div class="metric-label">24h Next Predicted PaO2</div>
+            <div class="metric-value">{pao2_trajectory[-1]} <span class="metric-unit">mmHg</span></div>
+            <div class="{cls}">{arrow} {abs(d):.1f} vs Hour 0</div>
+        </div>
+    ''', unsafe_allow_html=True)
 
-    with col1:
-        d = pao2_trajectory[-1] - pao2_0
-        arrow = "▲" if d >= 0 else "▼"
-        cls = "metric-delta-pos" if d >= 0 else "metric-delta-neg"
-        st.markdown(f'''
-            <div class="metric-card">
-                <div class="metric-label">24h Next Predicted PaO2</div>
-                <div class="metric-value">{pao2_trajectory[-1]} <span class="metric-unit">mmHg</span></div>
-                <div class="{cls}">{arrow} {abs(d):.1f} vs Hour 0</div>
-            </div>
-        ''', unsafe_allow_html=True)
+with col2:
+    d = ph_trajectory[-1] - ph_0
+    arrow = "▲" if d >= 0 else "▼"
+    cls = "metric-delta-pos" if d >= 0 else "metric-delta-neg"
+    st.markdown(f'''
+        <div class="metric-card">
+            <div class="metric-label">24h Next Predicted pH</div>
+            <div class="metric-value">{ph_trajectory[-1]}</div>
+            <div class="{cls}">{arrow} {abs(d):.2f} vs Hour 0</div>
+        </div>
+    ''', unsafe_allow_html=True)
 
-    with col2:
-        d = ph_trajectory[-1] - ph_0
-        arrow = "▲" if d >= 0 else "▼"
-        cls = "metric-delta-pos" if d >= 0 else "metric-delta-neg"
-        st.markdown(f'''
-            <div class="metric-card">
-                <div class="metric-label">24h Next Predicted pH</div>
-                <div class="metric-value">{ph_trajectory[-1]}</div>
-                <div class="{cls}">{arrow} {abs(d):.2f} vs Hour 0</div>
-            </div>
-        ''', unsafe_allow_html=True)
+with col3:
+    d = lactate_trajectory[-1] - lactate_0
+    arrow = "▲" if d >= 0 else "▼"
+    cls = "metric-delta-neg" if d >= 0 else "metric-delta-pos"
+    st.markdown(f'''
+        <div class="metric-card">
+            <div class="metric-label">24h Next Predicted Lactate</div>
+            <div class="metric-value">{lactate_trajectory[-1]} <span class="metric-unit">mmol/L</span></div>
+            <div class="{cls}">{arrow} {abs(d):.1f} vs Hour 0</div>
+        </div>
+    ''', unsafe_allow_html=True)
 
-    with col3:
-        d = lactate_trajectory[-1] - lactate_0
-        arrow = "▲" if d >= 0 else "▼"
-        cls = "metric-delta-neg" if d >= 0 else "metric-delta-pos"
-        st.markdown(f'''
-            <div class="metric-card">
-                <div class="metric-label">24h Next Predicted Lactate</div>
-                <div class="metric-value">{lactate_trajectory[-1]} <span class="metric-unit">mmol/L</span></div>
-                <div class="{cls}">{arrow} {abs(d):.1f} vs Hour 0</div>
-            </div>
-        ''', unsafe_allow_html=True)
+st.write("")
 
-    st.write("")
+if len(critical_sampling_hours) == 0:
+    st.markdown('''
+        <div class="status-stable">
+            🟢 <strong>REDUCED SAMPLING BENEFIT:</strong> Patient physiological trajectory is STABLE.
+            No routine invasive blood draws required for the next 24 hours!
+        </div>
+    ''', unsafe_allow_html=True)
+else:
+    st.markdown(f'''
+        <div class="status-warning">
+            🚨 <strong>TARGETED BLOOD DRAW REQUIRED:</strong> Invasive blood sampling recommended ONLY at
+            Hour(s): <strong>{', '.join(map(str, critical_sampling_hours))}</strong>
+            (Skipping non-critical hours to minimize patient trauma).
+        </div>
+    ''', unsafe_allow_html=True)
 
-    if len(critical_sampling_hours) == 0:
-        st.markdown('''
-            <div class="status-stable">
-                🟢 <strong>REDUCED SAMPLING BENEFIT:</strong> Patient physiological trajectory is STABLE.
-                No routine invasive blood draws required for the next 24 hours!
-            </div>
-        ''', unsafe_allow_html=True)
-    else:
-        st.markdown(f'''
-            <div class="status-warning">
-                🚨 <strong>TARGETED BLOOD DRAW REQUIRED:</strong> Invasive blood sampling recommended ONLY at
-                Hour(s): <strong>{', '.join(map(str, critical_sampling_hours))}</strong>
-                (Skipping non-critical hours to minimize patient trauma).
-            </div>
-        ''', unsafe_allow_html=True)
+st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
 
-# ============ TAB 2: VISUALIZATIONS ============
-with tab2:
-    st.markdown('<div class="section-header">📈 Section 2 · Digital Visualization & Clinical Explainability (XAI)</div>', unsafe_allow_html=True)
+# ==================================================================
+# SECTION 2: VISUALIZATIONS
+# ==================================================================
+st.markdown('<div class="section-header">📈 Section 2 · Digital Visualization & Clinical Explainability (XAI)</div>', unsafe_allow_html=True)
 
-    col_vis1, col_vis2, col_vis3 = st.columns([1.2, 1, 1])
+col_vis1, col_vis2, col_vis3 = st.columns([1.2, 1, 1])
 
-    BLUE = '#60A5FA'
-    GREEN = '#34D399'
-    AMBER = '#FBBF24'
-    RED = '#F87171'
-    GRID = 'rgba(148, 163, 184, 0.15)'
-    FONT = '#CBD5E1'
+BLUE = '#60A5FA'
+GREEN = '#34D399'
+AMBER = '#FBBF24'
+RED = '#F87171'
+GRID = 'rgba(148, 163, 184, 0.15)'
+FONT = '#CBD5E1'
 
-    # --- PANEL A ---
-    with col_vis1:
-        st.markdown("**PANEL A: BiLSTM 24-Hour ABG Trajectory Forecasting**")
+# --- PANEL A ---
+with col_vis1:
+    st.markdown("**PANEL A: BiLSTM 24-Hour ABG Trajectory Forecasting**")
 
-        fig_line = go.Figure()
+    fig_line = go.Figure()
+    fig_line.add_trace(go.Scatter(
+        x=hours, y=pao2_trajectory, mode='lines+markers', name='PaO2 (mmHg)',
+        line=dict(color=BLUE, width=3),
+        marker=dict(size=8, color=BLUE, line=dict(width=2, color='#1E293B')),
+        fill='tozeroy', fillcolor='rgba(96, 165, 250, 0.12)'
+    ))
+    fig_line.add_trace(go.Scatter(
+        x=hours, y=[p*10 for p in ph_trajectory], mode='lines+markers',
+        name='pH (×10 Scale)',
+        line=dict(color=GREEN, width=2, dash='dash'),
+        marker=dict(size=6, color=GREEN)
+    ))
+    fig_line.add_trace(go.Scatter(
+        x=hours, y=[l*20 for l in lactate_trajectory], mode='lines+markers',
+        name='Lactate (×20 Scale)',
+        line=dict(color=AMBER, width=2, dash='dot'),
+        marker=dict(size=6, color=AMBER)
+    ))
+    fig_line.add_hline(y=70, line_dash="dot", line_color=RED,
+                       annotation_text="Hypoxemia Threshold (70 mmHg)",
+                       annotation_font_color=RED, annotation_font_size=10)
+
+    if critical_sampling_hours:
+        crit_pao2 = [pao2_trajectory[hours.index(h)] for h in critical_sampling_hours]
         fig_line.add_trace(go.Scatter(
-            x=hours, y=pao2_trajectory, mode='lines+markers', name='PaO2 (mmHg)',
-            line=dict(color=BLUE, width=3),
-            marker=dict(size=8, color=BLUE, line=dict(width=2, color='#1E293B')),
-            fill='tozeroy', fillcolor='rgba(96, 165, 250, 0.12)'
+            x=critical_sampling_hours, y=crit_pao2, mode='markers',
+            name='⚠️ Critical Hour',
+            marker=dict(size=14, color=RED, symbol='x', line=dict(width=2))
         ))
-        fig_line.add_trace(go.Scatter(
-            x=hours, y=[p*10 for p in ph_trajectory], mode='lines+markers',
-            name='pH (×10 Scale)',
-            line=dict(color=GREEN, width=2, dash='dash'),
-            marker=dict(size=6, color=GREEN)
-        ))
-        fig_line.add_trace(go.Scatter(
-            x=hours, y=[l*20 for l in lactate_trajectory], mode='lines+markers',
-            name='Lactate (×20 Scale)',
-            line=dict(color=AMBER, width=2, dash='dot'),
-            marker=dict(size=6, color=AMBER)
-        ))
-        fig_line.add_hline(y=70, line_dash="dot", line_color=RED,
-                           annotation_text="Hypoxemia Threshold (70 mmHg)",
-                           annotation_font_color=RED, annotation_font_size=10)
 
-        if critical_sampling_hours:
-            crit_pao2 = [pao2_trajectory[hours.index(h)] for h in critical_sampling_hours]
-            fig_line.add_trace(go.Scatter(
-                x=critical_sampling_hours, y=crit_pao2, mode='markers',
-                name='⚠️ Critical Hour',
-                marker=dict(size=14, color=RED, symbol='x', line=dict(width=2))
-            ))
+    fig_line.update_layout(
+        xaxis_title="Time Horizon (Hours after Admission)",
+        yaxis_title="Predicted Trajectory Level",
+        margin=dict(l=10, r=10, b=30, t=10),
+        height=380,
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(color=FONT, size=11, family='Inter'),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
+                   font=dict(size=10, color=FONT), bgcolor='rgba(0,0,0,0)'),
+        hovermode='x unified',
+        xaxis=dict(gridcolor=GRID, linecolor=GRID, color=FONT),
+        yaxis=dict(gridcolor=GRID, linecolor=GRID, color=FONT)
+    )
+    st.plotly_chart(fig_line, use_container_width=True)
 
-        fig_line.update_layout(
-            xaxis_title="Time Horizon (Hours after Admission)",
-            yaxis_title="Predicted Trajectory Level",
-            margin=dict(l=10, r=10, b=30, t=10),
-            height=380,
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(color=FONT, size=11, family='Inter'),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
-                       font=dict(size=10, color=FONT), bgcolor='rgba(0,0,0,0)'),
-            hovermode='x unified',
-            xaxis=dict(gridcolor=GRID, linecolor=GRID, color=FONT),
-            yaxis=dict(gridcolor=GRID, linecolor=GRID, color=FONT)
-        )
-        st.plotly_chart(fig_line, use_container_width=True)
+# --- PANEL B ---
+with col_vis2:
+    st.markdown("**PANEL B: ANFIS 3D Fuzzy Surface Plot**")
 
-    # --- PANEL B ---
-    with col_vis2:
-        st.markdown("**PANEL B: ANFIS 3D Fuzzy Surface Plot**")
+    x_axis = np.linspace(21, 100, 35)
+    y_axis = np.linspace(8, 40, 35)
+    X, Y = np.meshgrid(x_axis, y_axis)
+    Z = 40 + (2.1 * X) - (0.012 * (X**1.8)) - (15 / (1 + np.exp(-(Y - 22) / 3))) + (25 * np.exp(-((X-60)**2 / 400 + (Y-20)**2 / 100)))
 
-        x_axis = np.linspace(21, 100, 35)
-        y_axis = np.linspace(8, 40, 35)
-        X, Y = np.meshgrid(x_axis, y_axis)
-        Z = 40 + (2.1 * X) - (0.012 * (X**1.8)) - (15 / (1 + np.exp(-(Y - 22) / 3))) + (25 * np.exp(-((X-60)**2 / 400 + (Y-20)**2 / 100)))
+    fig_3d = go.Figure(data=[go.Surface(
+        z=Z, x=x_axis, y=y_axis,
+        colorscale=[[0, '#1E3A8A'], [0.25, '#3B82F6'], [0.5, '#60A5FA'],
+                    [0.75, '#93C5FD'], [1, '#DBEAFE']],
+        colorbar=dict(title=dict(text="PaO2", font=dict(color=FONT, size=11)),
+                     thickness=12, len=0.7,
+                     tickfont=dict(size=10, color=FONT))
+    )])
+    fig_3d.update_layout(
+        scene=dict(
+            xaxis_title='FiO2 (%)', yaxis_title='RR (bpm)', zaxis_title='PaO2 (mmHg)',
+            camera=dict(eye=dict(x=1.5, y=1.5, z=1.2)),
+            xaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID,
+                      tickfont=dict(size=9, color=FONT), title_font=dict(size=10, color=FONT)),
+            yaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID,
+                      tickfont=dict(size=9, color=FONT), title_font=dict(size=10, color=FONT)),
+            zaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID,
+                      tickfont=dict(size=9, color=FONT), title_font=dict(size=10, color=FONT))
+        ),
+        margin=dict(l=5, r=5, b=5, t=5),
+        height=380,
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(family='Inter', color=FONT)
+    )
+    st.plotly_chart(fig_3d, use_container_width=True)
 
-        fig_3d = go.Figure(data=[go.Surface(
-            z=Z, x=x_axis, y=y_axis,
-            colorscale=[[0, '#1E3A8A'], [0.25, '#3B82F6'], [0.5, '#60A5FA'],
-                        [0.75, '#93C5FD'], [1, '#DBEAFE']],
-            colorbar=dict(title=dict(text="PaO2", font=dict(color=FONT, size=11)),
-                         thickness=12, len=0.7,
-                         tickfont=dict(size=10, color=FONT))
-        )])
-        fig_3d.update_layout(
-            scene=dict(
-                xaxis_title='FiO2 (%)', yaxis_title='RR (bpm)', zaxis_title='PaO2 (mmHg)',
-                camera=dict(eye=dict(x=1.5, y=1.5, z=1.2)),
-                xaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID,
-                          tickfont=dict(size=9, color=FONT), title_font=dict(size=10, color=FONT)),
-                yaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID,
-                          tickfont=dict(size=9, color=FONT), title_font=dict(size=10, color=FONT)),
-                zaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID,
-                          tickfont=dict(size=9, color=FONT), title_font=dict(size=10, color=FONT))
-            ),
-            margin=dict(l=5, r=5, b=5, t=5),
-            height=380,
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(family='Inter', color=FONT)
-        )
-        st.plotly_chart(fig_3d, use_container_width=True)
+# --- PANEL C ---
+with col_vis3:
+    st.markdown("**PANEL C: SHAP Feature Importance Ranking**")
 
-    # --- PANEL C ---
-    with col_vis3:
-        st.markdown("**PANEL C: SHAP Feature Importance Ranking**")
+    shap_df = pd.DataFrame({
+        'Clinical Feature': ['Heart Rate', 'Resp. Rate', 'SpO2 Level', 'FiO2 Setting'],
+        'SHAP Value': [0.08, 0.22, 0.31, 0.45]
+    })
 
-        shap_df = pd.DataFrame({
-            'Clinical Feature': ['Heart Rate', 'Resp. Rate', 'SpO2 Level', 'FiO2 Setting'],
-            'SHAP Value': [0.08, 0.22, 0.31, 0.45]
-        })
+    colors = ['#1E40AF', '#3B82F6', '#60A5FA', '#93C5FD']
 
-        colors = ['#1E40AF', '#3B82F6', '#60A5FA', '#93C5FD']
+    fig_bar = go.Figure(go.Bar(
+        x=shap_df['SHAP Value'],
+        y=shap_df['Clinical Feature'],
+        orientation='h',
+        marker=dict(color=colors, line=dict(color='rgba(255,255,255,0.2)', width=1)),
+        text=[f"{v:.2f}" for v in shap_df['SHAP Value']],
+        textposition='outside',
+        textfont=dict(color=FONT, size=11, family='Inter')
+    ))
+    fig_bar.update_layout(
+        xaxis_title="SHAP Value Impact",
+        yaxis_title="",
+        margin=dict(l=10, r=10, b=40, t=10),
+        height=380,
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(color=FONT, size=11, family='Inter'),
+        xaxis=dict(range=[0, 0.55], gridcolor=GRID, linecolor=GRID, color=FONT),
+        yaxis=dict(gridcolor='rgba(0,0,0,0)', linecolor=GRID, color=FONT)
+    )
+    st.plotly_chart(fig_bar, use_container_width=True)
 
-        fig_bar = go.Figure(go.Bar(
-            x=shap_df['SHAP Value'],
-            y=shap_df['Clinical Feature'],
-            orientation='h',
-            marker=dict(color=colors, line=dict(color='rgba(255,255,255,0.2)', width=1)),
-            text=[f"{v:.2f}" for v in shap_df['SHAP Value']],
-            textposition='outside',
-            textfont=dict(color=FONT, size=11, family='Inter')
-        ))
-        fig_bar.update_layout(
-            xaxis_title="SHAP Value Impact",
-            yaxis_title="",
-            margin=dict(l=10, r=10, b=40, t=10),
-            height=380,
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(color=FONT, size=11, family='Inter'),
-            xaxis=dict(range=[0, 0.55], gridcolor=GRID, linecolor=GRID, color=FONT),
-            yaxis=dict(gridcolor='rgba(0,0,0,0)', linecolor=GRID, color=FONT)
-        )
-        st.plotly_chart(fig_bar, use_container_width=True)
+st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
 
-# ============ TAB 3: PERFORMANCE ============
-with tab3:
-    st.markdown('<div class="section-header">📋 Section 3 · Continuous Model Accuracy Benchmarking</div>', unsafe_allow_html=True)
+# ==================================================================
+# SECTION 3: PERFORMANCE
+# ==================================================================
+st.markdown('<div class="section-header">📋 Section 3 · Continuous Model Accuracy Benchmarking</div>', unsafe_allow_html=True)
 
-    metrics_data = {
-        "Algorithm Architecture": [
-            "🏆 BiLSTM-Attention (Proposed Model)",
-            "ANFIS (Fuzzy Model)",
-            "XGBoost (Ensemble Baseline)"
-        ],
-        "Target Forecasting": [
-            "24h Continuous Trajectory",
-            "Continuous Fuzzy Mapping",
-            "Static Tabular Snapshot Only"
-        ],
-        "Continuous RMSE": [0.2612, 0.2840, 0.4210],
-        "Continuous MAE": [0.2239, 0.2420, 0.3580],
-        "Invasive Draw Reduction": [
-            "🟢 Reduced by up to 75%",
-            "🟢 Reduced by 60%",
-            "🔴 Baseline (Manual Draw Every 3h)"
-        ]
-    }
-    st.table(pd.DataFrame(metrics_data))
+metrics_data = {
+    "Algorithm Architecture": [
+        "🏆 BiLSTM-Attention (Proposed Model)",
+        "ANFIS (Fuzzy Model)",
+        "XGBoost (Ensemble Baseline)"
+    ],
+    "Target Forecasting": [
+        "24h Continuous Trajectory",
+        "Continuous Fuzzy Mapping",
+        "Static Tabular Snapshot Only"
+    ],
+    "Continuous RMSE": [0.2612, 0.2840, 0.4210],
+    "Continuous MAE": [0.2239, 0.2420, 0.3580],
+    "Invasive Draw Reduction": [
+        "🟢 Reduced by up to 75%",
+        "🟢 Reduced by 60%",
+        "🔴 Baseline (Manual Draw Every 3h)"
+    ]
+}
+st.table(pd.DataFrame(metrics_data))
 
 # ------------------------------------------------------------------
-# 6. FOOTER
+# 4. FOOTER
 # ------------------------------------------------------------------
 st.markdown("""
     <div class="footer">
-        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 2.5 ·
+        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 2.6 ·
         © 2024 Faculty of Electrical Engineering, UiTM Pasir Gudang<br>
         For clinical decision support only — always verify with attending physician.
     </div>
