@@ -219,7 +219,7 @@ st.markdown("""
         color: #64748B;
         font-size: 12px;
         margin-top: 30px;
-        margin-bottom: 70px; /* Space for the bottom orb */
+        margin-bottom: 50px;
         border-top: 1px solid rgba(59, 130, 246, 0.2);
     }
     </style>
@@ -528,9 +528,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
-# 5. INTEGRASI BUTANG SIRI-STYLE: "NEX GLOW ORB" (BOTTOM CENTER)
+# 5. INTEGRASI BUTANG TERAPUNG: "NEX GLOW ORB" (DEAD CENTER & SCROLL-LOCK)
 # ------------------------------------------------------------------
-# Data telemetri disiapkan untuk dihantar kepada NEX
 telemetry_payload = {
     "pao2_24h": pao2_trajectory[-1],
     "ph_24h": ph_trajectory[-1],
@@ -544,269 +543,251 @@ telemetry_payload = {
 
 telemetry_json = json.dumps(telemetry_payload)
 
-# Komponen HTML / CSS / JS untuk Siri Orb
-siri_orb_html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-<style>
-    /* Container Terapung di Bawah Tengah */
-    .nex-wrapper {{
-        position: fixed;
-        bottom: 24px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 999999;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        font-family: 'Inter', -apple-system, sans-serif;
-    }}
-
-    /* Kotak Dialog Pop-up Transkrip Jawapan */
-    .nex-bubble {{
-        display: none;
-        max-width: 420px;
-        background: rgba(15, 23, 42, 0.92);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
-        border: 1px solid rgba(56, 189, 248, 0.4);
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.25);
-        color: #F8FAFC;
-        padding: 14px 18px;
-        border-radius: 16px;
-        font-size: 13px;
-        line-height: 1.5;
-        margin-bottom: 16px;
-        text-align: center;
-        animation: fadeIn 0.3s ease forwards;
-    }}
-
-    .nex-bubble-title {{
-        color: #38BDF8;
-        font-weight: 700;
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-bottom: 4px;
-    }}
-
-    /* Butang Siri Orb Bulat */
-    .nex-orb-btn {{
-        width: 64px;
-        height: 64px;
-        border-radius: 50%;
-        background: radial-gradient(circle at 35% 35%, #38BDF8 0%, #2563EB 50%, #0F172A 100%);
-        box-shadow: 0 0 25px rgba(56, 189, 248, 0.6), 0 0 50px rgba(37, 99, 235, 0.35);
-        border: 2px solid rgba(255, 255, 255, 0.3);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        position: relative;
-        outline: none;
-    }}
-
-    .nex-orb-btn:hover {{
-        transform: scale(1.08);
-        box-shadow: 0 0 35px rgba(56, 189, 248, 0.8), 0 0 60px rgba(37, 99, 235, 0.5);
-    }}
-
-    .nex-orb-btn:active {{
-        transform: scale(0.96);
-    }}
-
-    /* Gelombang Denyutan Siri (Pulse Rings) */
-    .nex-ring {{
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        border-radius: 50%;
-        border: 2px solid #38BDF8;
-        opacity: 0;
-        pointer-events: none;
-    }}
-
-    .nex-orb-btn.listening .nex-ring {{
-        animation: siriPulse 1.8s infinite ease-out;
-    }}
-
-    .nex-orb-btn.listening {{
-        background: radial-gradient(circle at 35% 35%, #F43F5E 0%, #E11D48 50%, #881337 100%);
-        box-shadow: 0 0 35px rgba(244, 63, 94, 0.8);
-        border-color: rgba(255, 255, 255, 0.6);
-    }}
-
-    @keyframes siriPulse {{
-        0% {{ transform: scale(1); opacity: 0.8; }}
-        100% {{ transform: scale(2.1); opacity: 0; }}
-    }}
-
-    @keyframes fadeIn {{
-        from {{ opacity: 0; transform: translateY(8px); }}
-        to {{ opacity: 1; transform: translateY(0); }}
-    }}
-
-    .nex-label {{
-        margin-top: 8px;
-        font-size: 11px;
-        font-weight: 600;
-        color: #94A3B8;
-        letter-spacing: 0.5px;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-    }}
-</style>
-</head>
-<body>
-
-<div class="nex-wrapper">
-    <!-- Pop-up Bubble Transkrip Jawapan -->
-    <div id="nexBubble" class="nex-bubble">
-        <div class="nex-bubble-title">⚡ NEX Clinical Copilot</div>
-        <div id="nexText">Initializing telemetry sync...</div>
-    </div>
-
-    <!-- Siri Orb Button -->
-    <button id="nexBtn" class="nex-orb-btn" title="Tap to talk with NEX">
-        <div class="nex-ring"></div>
-        <!-- Ikon Mikrofon Gelombang Dalam Orb -->
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-            <line x1="12" y1="19" x2="12" y2="22"></line>
-        </svg>
-    </button>
-    <div id="nexStatus" class="nex-label">TAP TO TALK TO NEX</div>
-</div>
-
+floating_orb_script = f"""
 <script>
+(function() {{
+    const parentDoc = window.parent.document;
     const telemetry = {telemetry_json};
-    const btn = document.getElementById('nexBtn');
-    const bubble = document.getElementById('nexBubble');
-    const nexText = document.getElementById('nexText');
-    const nexStatus = document.getElementById('nexStatus');
+
+    // Bersihkan elemen lama jika Streamlit render semula
+    const existing = parentDoc.getElementById('nex-floating-root');
+    if (existing) {{
+        existing.remove();
+    }}
+
+    // 1. Suntik Gaya CSS Terkunci di Tengah Skrin (Absolute Screen Center & Scroll-Lock)
+    const styleId = 'nex-floating-style';
+    let style = parentDoc.getElementById(styleId);
+    if (!style) {{
+        style = parentDoc.createElement('style');
+        style.id = styleId;
+        parentDoc.head.appendChild(style);
+    }}
+    
+    style.innerHTML = `
+        #nex-floating-root {{
+            position: fixed !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            z-index: 9999999 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            pointer-events: none !important;
+            font-family: 'Inter', -apple-system, sans-serif !important;
+        }}
+
+        .nex-bubble-container {{
+            pointer-events: auto !important;
+            display: none;
+            max-width: 380px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(56, 189, 248, 0.5);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(56, 189, 248, 0.3);
+            color: #F8FAFC;
+            padding: 14px 18px;
+            border-radius: 16px;
+            font-size: 13px;
+            line-height: 1.5;
+            margin-bottom: 18px;
+            text-align: center;
+            animation: nexCenterPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }}
+
+        .nex-orb-button {{
+            pointer-events: auto !important;
+            width: 74px;
+            height: 74px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #38BDF8 0%, #2563EB 55%, #0F172A 100%);
+            box-shadow: 0 0 30px rgba(56, 189, 248, 0.7), 0 0 60px rgba(37, 99, 235, 0.45);
+            border: 2.5px solid rgba(255, 255, 255, 0.4);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            outline: none;
+        }}
+
+        .nex-orb-button:hover {{
+            transform: scale(1.12);
+            box-shadow: 0 0 40px rgba(56, 189, 248, 0.9), 0 0 75px rgba(37, 99, 235, 0.65);
+        }}
+
+        .nex-pulse-ring {{
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid #38BDF8;
+            opacity: 0;
+            pointer-events: none;
+        }}
+
+        .nex-orb-button.listening .nex-pulse-ring {{
+            animation: centerPulse 1.6s infinite ease-out;
+        }}
+
+        .nex-orb-button.listening {{
+            background: radial-gradient(circle at 35% 35%, #F43F5E 0%, #E11D48 55%, #881337 100%);
+            box-shadow: 0 0 45px rgba(244, 63, 94, 0.9);
+            border-color: rgba(255, 255, 255, 0.8);
+        }}
+
+        .nex-subtext {{
+            margin-top: 10px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #93C5FD;
+            letter-spacing: 0.8px;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+            pointer-events: none;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 3px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+        }}
+
+        @keyframes centerPulse {{
+            0% {{ transform: scale(1); opacity: 0.85; }}
+            100% {{ transform: scale(2.3); opacity: 0; }}
+        }}
+
+        @keyframes nexCenterPop {{
+            from {{ opacity: 0; transform: scale(0.9) translateY(10px); }}
+            to {{ opacity: 1; transform: scale(1) translateY(0); }}
+        }}
+    `;
+
+    // 2. Cipta Elemen Terapung Bebas
+    const root = parentDoc.createElement('div');
+    root.id = 'nex-floating-root';
+    root.innerHTML = `
+        <div id="nexBubbleBox" class="nex-bubble-container">
+            <div style="color: #38BDF8; font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">⚡ NEX Clinical Copilot</div>
+            <div id="nexBubbleContent">Telemetry Synchronized. Tap to initiate briefing.</div>
+        </div>
+
+        <button id="nexOrbTrigger" class="nex-orb-button" title="Tap to talk to NEX">
+            <div class="nex-pulse-ring"></div>
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="22"></line>
+            </svg>
+        </button>
+        <div id="nexStatusLabel" class="nex-subtext">TAP TO TALK TO NEX</div>
+    `;
+    parentDoc.body.appendChild(root);
+
+    // 3. Logik Interaksi Suara (STT & TTS)
+    const btn = parentDoc.getElementById('nexOrbTrigger');
+    const bubbleBox = parentDoc.getElementById('nexBubbleBox');
+    const bubbleContent = parentDoc.getElementById('nexBubbleContent');
+    const statusLabel = parentDoc.getElementById('nexStatusLabel');
 
     let isListening = false;
 
-    // Enjin Suara Browser (TTS)
-    function nexSpeak(text) {{
+    function speak(text) {{
         if (!('speechSynthesis' in window)) return;
         window.speechSynthesis.cancel();
-
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1.05;
-        utterance.pitch = 0.95;
-
-        // Cuba cari suara berloghat British (JARVIS Persona)
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.rate = 1.05;
+        utter.pitch = 0.95;
         const voices = window.speechSynthesis.getVoices();
-        const britishVoice = voices.find(v => v.lang === 'en-GB' || v.name.includes('UK') || v.name.includes('British'));
-        if (britishVoice) {{
-            utterance.voice = britishVoice;
-        }}
-
-        window.speechSynthesis.speak(utterance);
+        const uk = voices.find(v => v.lang === 'en-GB' || v.name.includes('UK') || v.name.includes('British'));
+        if (uk) utter.voice = uk;
+        window.speechSynthesis.speak(utter);
     }}
 
-    // Penjana Maklum Balas Klinikal Pintar (Clinical Logic Reasoning)
-    function generateClinicalInsight(userQuery) {{
-        const q = userQuery.toLowerCase();
-        let reply = "";
-
-        if (q.includes("briefing") || q.includes("status") || q.includes("update") || q.includes("patient")) {{
+    function answer(query) {{
+        const q = query.toLowerCase();
+        if (q.includes("status") || q.includes("briefing") || q.includes("update") || q.includes("patient")) {{
             if (telemetry.critical_hours.length > 0) {{
-                reply = "Good day, Doctor. The patient's 24-hour forecast indicates critical risks. PaO2 is at " + 
-                        telemetry.pao2_24h + " mmHg, with serum lactate elevating to " + telemetry.lactate_24h + 
-                        " mmol/L. Invasive arterial sampling is required at Hour " + telemetry.critical_hours.join(", ") + ".";
+                return "Good day, Doctor. Critical trajectories detected. PaO2 reaches " + telemetry.pao2_24h + 
+                       " mmHg while serum lactate spikes to " + telemetry.lactate_24h + " mmol/L. Targeted blood draw required at Hour " + 
+                       telemetry.critical_hours.join(", ") + ".";
             }} else {{
-                reply = "Good day, Doctor. Patient physiological trajectory is completely stable over the 24-hour horizon. PaO2 is projected at " + 
-                        telemetry.pao2_24h + " mmHg with normal lactate levels. All routine invasive draws may be safely deferred.";
+                return "Good day, Doctor. Patient trajectory is completely stable. PaO2 is projected at " + telemetry.pao2_24h + 
+                       " mmHg with safe lactate levels. Routine invasive draws can be safely deferred.";
             }}
-        }} 
-        else if (q.includes("lactate") || q.includes("laktat")) {{
-            reply = "Serum lactate is projected to reach " + telemetry.lactate_24h + " mmol/L. The elevation correlates directly with ventilation settings and baseline perfusion.";
-        }} 
-        else if (q.includes("pao2") || q.includes("oxygen") || q.includes("oksigen")) {{
-            reply = "Predicted PaO2 at 24 hours is " + telemetry.pao2_24h + " mmHg under an FiO2 of " + telemetry.fio2 + " percent and respiration rate of " + telemetry.rr + " breaths per minute.";
-        }} 
-        else if (q.includes("who are you") || q.includes("siapa awak")) {{
-            reply = "I am NEX, your clinical decision intelligence core, monitoring real-time ICU ABG telemetry for this patient.";
+        }} else if (q.includes("lactate") || q.includes("laktat")) {{
+            return "Serum lactate is projected to reach " + telemetry.lactate_24h + " mmol/L at the 24-hour mark.";
+        }} else if (q.includes("pao2") || q.includes("oxygen")) {{
+            return "Predicted PaO2 at 24 hours is " + telemetry.pao2_24h + " mmHg under current FiO2 setting of " + telemetry.fio2 + " percent.";
+        }} else {{
+            return "Telemetry active, Doctor. Current 24-hour forecast: PaO2 is " + telemetry.pao2_24h + " mmHg, and Lactate is " + telemetry.lactate_24h + " mmol/L.";
         }}
-        else {{
-            reply = "Telemetry synchronized, Doctor. Current 24-hour forecast: PaO2 is " + telemetry.pao2_24h + " mmHg, and Lactate is " + telemetry.lactate_24h + " mmol/L.";
-        }}
-
-        return reply;
     }}
 
-    // Enjin Pengecaman Suara Browser (STT)
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    if (SpeechRecognition) {{
-        const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.lang = 'en-US';
+    function bindRecognition(recognizer) {{
+        recognizer.onstart = () => {{
+            isListening = true;
+            btn.classList.add('listening');
+            statusLabel.innerText = "NEX IS LISTENING...";
+            statusLabel.style.color = "#F43F5E";
+            bubbleBox.style.display = "block";
+            bubbleContent.innerText = "Listening to clinical command...";
+        }};
+
+        recognizer.onresult = (e) => {{
+            const speechText = e.results[0][0].transcript;
+            statusLabel.innerText = "PROCESSING...";
+            statusLabel.style.color = "#38BDF8";
+            
+            const reply = answer(speechText);
+            bubbleContent.innerHTML = "<strong>You:</strong> \\"" + speechText + "\\" <br><br><strong>NEX:</strong> " + reply;
+            speak(reply);
+        }};
+
+        recognizer.onend = () => {{
+            isListening = false;
+            btn.classList.remove('listening');
+            statusLabel.innerText = "TAP TO TALK TO NEX";
+            statusLabel.style.color = "#93C5FD";
+        }};
+
+        recognizer.onerror = () => {{
+            isListening = false;
+            btn.classList.remove('listening');
+            statusLabel.innerText = "TAP TO TALK TO NEX";
+            statusLabel.style.color = "#93C5FD";
+        }};
+    }}
+
+    if (SpeechRec) {{
+        const recognizer = new SpeechRec();
+        recognizer.continuous = false;
+        recognizer.lang = 'en-US';
 
         btn.onclick = () => {{
             if (!isListening) {{
-                try {{
-                    recognition.start();
-                }} catch (e) {{
-                    console.log(e);
-                }}
+                recognizer.start();
             }} else {{
-                recognition.stop();
+                recognizer.stop();
             }}
         }};
 
-        recognition.onstart = () => {{
-            isListening = true;
-            btn.classList.add('listening');
-            nexStatus.innerText = "NEX IS LISTENING...";
-            nexStatus.style.color = "#F43F5E";
-            bubble.style.display = "block";
-            nexText.innerText = "Listening to clinical command...";
-        }};
-
-        recognition.onresult = (event) => {{
-            const transcript = event.results[0][0].transcript;
-            nexStatus.innerText = "PROCESSING...";
-            nexStatus.style.color = "#38BDF8";
-            
-            const response = generateClinicalInsight(transcript);
-            nexText.innerHTML = "<strong>You:</strong> \\"" + transcript + "\\" <br><br><strong>NEX:</strong> " + response;
-            
-            nexSpeak(response);
-        }};
-
-        recognition.onend = () => {{
-            isListening = false;
-            btn.classList.remove('listening');
-            nexStatus.innerText = "TAP TO TALK TO NEX";
-            nexStatus.style.color = "#94A3B8";
-        }};
-
-        recognition.onerror = () => {{
-            isListening = false;
-            btn.classList.remove('listening');
-            nexStatus.innerText = "TAP TO TALK TO NEX";
-            nexStatus.style.color = "#94A3B8";
-            nexText.innerText = "Unable to capture audio. Tap again to speak.";
-        }};
+        bindRecognition(recognizer);
     }} else {{
-        // Pelayar yang tidak menyokong Web Speech API akan memberikan taklimat automatik bila ditekan
         btn.onclick = () => {{
-            bubble.style.display = "block";
-            const response = generateClinicalInsight("status");
-            nexText.innerHTML = "<strong>NEX Briefing:</strong> " + response;
-            nexSpeak(response);
+            bubbleBox.style.display = "block";
+            const reply = answer("status");
+            bubbleContent.innerHTML = "<strong>NEX Briefing:</strong> " + reply;
+            speak(reply);
         }};
     }}
+}})();
 </script>
-
-</body>
-</html>
 """
 
-# Paparkan komponen Siri Orb
-components.html(siri_orb_html, height=140)
+# Suntik terus ke DOM induk tanpa mengambil ruang paparan
+components.html(floating_orb_script, height=0)
