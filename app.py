@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import json
+import base64
+from pathlib import Path
 
 # ------------------------------------------------------------------
 # 1. PAGE SETUP
@@ -15,17 +17,71 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ------------------------------------------------------------------
+# BACKGROUND IMAGE LOADER
+# ------------------------------------------------------------------
+def get_base64_image(image_path):
+    """Convert image to base64 untuk inject dalam CSS."""
+    try:
+        with open(image_path, "rb") as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    except FileNotFoundError:
+        return None
+
+# Cuba cari Background.jpg dalam beberapa lokasi
+bg_img = None
+for path in ["Background.jpg", "background.jpg", "./Background.jpg",
+             "assets/Background.jpg", "static/Background.jpg"]:
+    bg_img = get_base64_image(path)
+    if bg_img:
+        break
+
 # Theme Styling
-st.markdown("""
+bg_css = ""
+if bg_img:
+    bg_css = f"""
+    .stApp {{
+        background-image: 
+            linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.90)),
+            url("data:image/jpeg;base64,{bg_img}");
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+    }}
+    """
+else:
+    bg_css = """
+    .stApp {
+        background: linear-gradient(180deg, #0F172A 0%, #1E293B 100%);
+    }
+    """
+
+st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
     
-    html, body, [class*="css"] {
+    html, body, [class*="css"] {{
         font-family: 'Inter', sans-serif;
-    }
+    }}
+    
+    /* ============ BACKGROUND IMAGE ============ */
+    {bg_css}
+    
+    /* Make main container semi-transparent */
+    .main .block-container {{
+        background: rgba(15, 23, 42, 0.55);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border-radius: 18px;
+        padding: 2rem 2.5rem;
+        margin-top: 1rem;
+        border: 1px solid rgba(96, 165, 250, 0.15);
+    }}
     
     /* Animated Gradient Header */
-    .header-box {
+    .header-box {{
         background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 50%, #1E40AF 100%);
         background-size: 200% 200%;
         animation: gradientShift 8s ease infinite;
@@ -37,9 +93,9 @@ st.markdown("""
         box-shadow: 0 8px 25px rgba(30, 58, 138, 0.4);
         position: relative;
         overflow: hidden;
-    }
+    }}
     
-    .header-box::before {
+    .header-box::before {{
         content: '';
         position: absolute;
         top: -50%;
@@ -48,106 +104,106 @@ st.markdown("""
         height: 200%;
         background: radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 60%);
         animation: rotate 20s linear infinite;
-    }
+    }}
     
-    @keyframes gradientShift {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
-    }
+    @keyframes gradientShift {{
+        0% {{ background-position: 0% 50%; }}
+        50% {{ background-position: 100% 50%; }}
+        100% {{ background-position: 0% 50%; }}
+    }}
     
-    @keyframes rotate {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-    }
+    @keyframes rotate {{
+        from {{ transform: rotate(0deg); }}
+        to {{ transform: rotate(360deg); }}
+    }}
     
-    .main-title { 
+    .main-title {{ 
         font-size: 26px; 
         font-weight: 800; 
         margin: 0; 
         letter-spacing: -0.5px;
         position: relative;
         z-index: 1;
-    }
-    .sub-title { 
+    }}
+    .sub-title {{ 
         font-size: 13px; 
         opacity: 0.9; 
         margin-top: 6px; 
         font-weight: 400;
         position: relative;
         z-index: 1;
-    }
+    }}
     
     /* Glassmorphism Metric Cards */
-    .metric-card {
-        background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(30, 58, 138, 0.20) 100%);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
+    .metric-card {{
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.20) 0%, rgba(30, 58, 138, 0.30) 100%);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
         padding: 20px;
         border-radius: 14px;
-        border: 1px solid rgba(96, 165, 250, 0.25);
+        border: 1px solid rgba(96, 165, 250, 0.30);
         border-left: 4px solid #3B82F6;
-        box-shadow: 0 4px 20px rgba(30, 58, 138, 0.15);
+        box-shadow: 0 4px 20px rgba(30, 58, 138, 0.25);
         transition: all 0.3s ease;
-    }
+    }}
     
-    .metric-card:hover {
+    .metric-card:hover {{
         transform: translateY(-3px);
-        border-color: rgba(96, 165, 250, 0.5);
-        box-shadow: 0 8px 30px rgba(59, 130, 246, 0.3);
-    }
+        border-color: rgba(96, 165, 250, 0.6);
+        box-shadow: 0 8px 30px rgba(59, 130, 246, 0.4);
+    }}
     
-    .metric-label {
+    .metric-label {{
         font-size: 11px;
         color: #93C5FD;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.6px;
-    }
+    }}
     
-    .metric-value {
+    .metric-value {{
         font-size: 30px;
         font-weight: 800;
         color: #DBEAFE;
         margin: 8px 0;
-    }
+    }}
     
-    .metric-unit {
+    .metric-unit {{
         font-size: 14px;
         color: #93C5FD;
         font-weight: 400;
-    }
+    }}
     
-    .metric-delta-pos { color: #6EE7B7; font-size: 12px; font-weight: 600; }
-    .metric-delta-neg { color: #FCA5A5; font-size: 12px; font-weight: 600; }
+    .metric-delta-pos {{ color: #6EE7B7; font-size: 12px; font-weight: 600; }}
+    .metric-delta-neg {{ color: #FCA5A5; font-size: 12px; font-weight: 600; }}
     
     /* Status Alerts */
-    .status-stable {
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.10) 100%);
-        backdrop-filter: blur(8px);
-        border: 1px solid rgba(16, 185, 129, 0.3);
+    .status-stable {{
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.20) 0%, rgba(5, 150, 105, 0.15) 100%);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(16, 185, 129, 0.4);
         border-left: 4px solid #10B981;
         padding: 16px 20px;
         border-radius: 12px;
         color: #A7F3D0;
         font-weight: 600;
         font-size: 14px;
-    }
+    }}
     
-    .status-warning {
-        background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.10) 100%);
-        backdrop-filter: blur(8px);
-        border: 1px solid rgba(245, 158, 11, 0.3);
+    .status-warning {{
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.20) 0%, rgba(217, 119, 6, 0.15) 100%);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(245, 158, 11, 0.4);
         border-left: 4px solid #F59E0B;
         padding: 16px 20px;
         border-radius: 12px;
         color: #FDE68A;
         font-weight: 600;
         font-size: 14px;
-    }
+    }}
     
     /* Section Headers */
-    .section-header {
+    .section-header {{
         font-size: 16px;
         font-weight: 700;
         color: #93C5FD;
@@ -157,31 +213,32 @@ st.markdown("""
         margin-top: 10px;
         display: inline-block;
         letter-spacing: -0.2px;
-    }
+    }}
     
     /* Sidebar */
-    section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, rgba(30, 58, 138, 0.15) 0%, rgba(15, 23, 42, 0.05) 100%);
-        border-right: 1px solid rgba(59, 130, 246, 0.15);
-    }
+    section[data-testid="stSidebar"] {{
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 58, 138, 0.85) 100%);
+        backdrop-filter: blur(14px);
+        border-right: 1px solid rgba(59, 130, 246, 0.25);
+    }}
     
-    section[data-testid="stSidebar"] .stMarkdown h2 {
+    section[data-testid="stSidebar"] .stMarkdown h2 {{
         color: #93C5FD;
         font-weight: 700;
-    }
+    }}
     
     /* Table */
-    .stTable table {
+    .stTable table {{
         border-radius: 12px;
         overflow: hidden;
         border: 1px solid rgba(59, 130, 246, 0.25);
-        background: rgba(30, 58, 138, 0.1);
-        backdrop-filter: blur(8px);
+        background: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(10px);
         font-size: 13px;
-    }
+    }}
     
-    .stTable thead th {
-        background: linear-gradient(135deg, rgba(30, 58, 138, 0.6) 0%, rgba(59, 130, 246, 0.5) 100%);
+    .stTable thead th {{
+        background: linear-gradient(135deg, rgba(30, 58, 138, 0.8) 0%, rgba(59, 130, 246, 0.6) 100%);
         color: #DBEAFE;
         font-weight: 600;
         padding: 14px 16px;
@@ -189,39 +246,39 @@ st.markdown("""
         text-transform: uppercase;
         letter-spacing: 0.5px;
         border-bottom: 1px solid rgba(96, 165, 250, 0.3);
-    }
+    }}
     
-    .stTable tbody tr {
+    .stTable tbody tr {{
         transition: background 0.2s ease;
-    }
+    }}
     
-    .stTable tbody tr:hover {
-        background: rgba(59, 130, 246, 0.15);
-    }
+    .stTable tbody tr:hover {{
+        background: rgba(59, 130, 246, 0.20);
+    }}
     
-    .stTable tbody td {
+    .stTable tbody td {{
         padding: 12px 16px;
         color: #CBD5E1;
         border-bottom: 1px solid rgba(59, 130, 246, 0.1);
-    }
+    }}
     
     /* Divider */
-    .custom-divider {
+    .custom-divider {{
         height: 1px;
         background: linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.4), transparent);
         margin: 35px 0;
-    }
+    }}
     
     /* Footer */
-    .footer {
+    .footer {{
         text-align: center;
         padding: 20px;
-        color: #64748B;
+        color: #94A3B8;
         font-size: 12px;
         margin-top: 30px;
         margin-bottom: 90px;
         border-top: 1px solid rgba(59, 130, 246, 0.2);
-    }
+    }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -245,7 +302,6 @@ uploaded_file = st.sidebar.file_uploader(
     help="Upload patient baseline and mechanical ventilation telemetry data."
 )
 
-# Nilai asal (Default)
 def_ph_0 = 7.38
 def_pao2_0 = 95.0
 def_paco2_0 = 40.0
@@ -254,7 +310,6 @@ def_spo2 = 96
 def_rr = 18
 def_fio2 = 40
 
-# Ekstrak data jika fail dimuat naik
 if uploaded_file is not None:
     try:
         if uploaded_file.name.endswith(".csv"):
@@ -331,7 +386,7 @@ st.sidebar.markdown("---")
 st.sidebar.info("🎯 **Clinical Goal:** Reduce routine invasive blood sampling from 8 times/day (every 3h) down to targeted draws only.")
 
 # ------------------------------------------------------------------
-# 3. FORECASTING ENGINE (Lactate → PaCO2)
+# 3. FORECASTING ENGINE
 # ------------------------------------------------------------------
 hours = [0, 3, 6, 9, 12, 15, 18, 21, 24]
 fio2_dec = fio2 / 100.0
@@ -353,7 +408,7 @@ critical_sampling_hours = [hours[i] for i in range(len(hours))
                           or paco2_trajectory[i] > 50]
 
 # ==================================================================
-# SECTION 1: PREDICTIONS
+# SECTION 1
 # ==================================================================
 st.markdown('<div class="section-header">📊 Section 1 · Real-Time Predictions & Sampling Alert</div>', unsafe_allow_html=True)
 
@@ -416,7 +471,7 @@ else:
 st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
 
 # ==================================================================
-# SECTION 2: VISUALIZATIONS
+# SECTION 2
 # ==================================================================
 st.markdown('<div class="section-header">📈 Section 2 · Digital Visualization & Clinical Explainability (XAI)</div>', unsafe_allow_html=True)
 
@@ -429,7 +484,6 @@ RED = '#F87171'
 GRID = 'rgba(148, 163, 184, 0.15)'
 FONT = '#CBD5E1'
 
-# --- PANEL A ---
 with col_vis1:
     st.markdown("**PANEL A: BiLSTM 24-Hour ABG Trajectory Forecasting**")
 
@@ -480,7 +534,6 @@ with col_vis1:
     )
     st.plotly_chart(fig_line, use_container_width=True)
 
-# --- PANEL B: ANFIS 3D SURFACE ---
 with col_vis2:
     st.markdown("**PANEL B: ANFIS 3D Fuzzy Surface Plot**")
 
@@ -516,7 +569,6 @@ with col_vis2:
     )
     st.plotly_chart(fig_3d, use_container_width=True)
 
-# --- PANEL C ---
 with col_vis3:
     st.markdown("**PANEL C: SHAP Feature Importance Ranking**")
 
@@ -552,7 +604,7 @@ with col_vis3:
 st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
 
 # ==================================================================
-# SECTION 3: PERFORMANCE
+# SECTION 3
 # ==================================================================
 st.markdown('<div class="section-header">📋 Section 3 · Continuous Model Accuracy Benchmarking</div>', unsafe_allow_html=True)
 
@@ -577,19 +629,16 @@ metrics_data = {
 }
 st.table(pd.DataFrame(metrics_data))
 
-# ------------------------------------------------------------------
-# 4. FOOTER
-# ------------------------------------------------------------------
 st.markdown("""
     <div class="footer">
-        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 2.8 ·
+        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 2.9 ·
         © 2024 Faculty of Electrical Engineering, UiTM Pasir Gudang<br>
         For clinical decision support only — always verify with attending physician.
     </div>
 """, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
-# 5. FLOATING ORB (NEX VOICE ASSISTANT)
+# 4. FLOATING ORB (NEX VOICE ASSISTANT)
 # ------------------------------------------------------------------
 telemetry_payload = {
     "pao2_24h": pao2_trajectory[-1],
@@ -808,7 +857,6 @@ floating_orb_script = """
 </script>
 """
 
-# Replace placeholder dengan data JSON sebenar
 floating_orb_script = floating_orb_script.replace("TELEMETRY_PLACEHOLDER", telemetry_json)
 
 components.html(floating_orb_script, height=0)
