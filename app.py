@@ -248,7 +248,7 @@ uploaded_file = st.sidebar.file_uploader(
 # Nilai asal (Default)
 def_ph_0 = 7.38
 def_pao2_0 = 95.0
-def_lactate_0 = 1.8
+def_paco2_0 = 40.0          # ← Tukar dari lactate ke PaCO2
 def_hr = 85
 def_spo2 = 96
 def_rr = 18
@@ -278,7 +278,7 @@ if uploaded_file is not None:
 
         def_ph_0 = get_val(['ph_0', 'ph', 'baseline_ph'], def_ph_0)
         def_pao2_0 = get_val(['pao2_0', 'pao2', 'baseline_pao2'], def_pao2_0)
-        def_lactate_0 = get_val(['lactate_0', 'lactate', 'baseline_lactate', 'lac'], def_lactate_0)
+        def_paco2_0 = get_val(['paco2_0', 'paco2', 'baseline_paco2', 'pco2'], def_paco2_0)
         def_hr = int(get_val(['hr', 'heart_rate', 'heartrate'], def_hr))
         def_spo2 = int(get_val(['spo2', 'sp_o2', 'saturation'], def_spo2))
         def_rr = int(get_val(['rr', 'respiration_rate', 'resp_rate'], def_rr))
@@ -296,16 +296,15 @@ st.sidebar.caption("First blood draw upon ICU admission")
 
 ph_0 = st.sidebar.number_input("Baseline pH (Hour 0)", 6.80, 7.80, float(def_ph_0), 0.01)
 pao2_0 = st.sidebar.number_input("Baseline PaO2 (mmHg)", 40.0, 300.0, float(def_pao2_0), 1.0)
-lactate_0 = st.sidebar.number_input("Baseline Lactate (mmol/L)", 0.5, 15.0, float(def_lactate_0), 0.1)
+paco2_0 = st.sidebar.number_input("Baseline PaCO2 (mmHg)", 20.0, 80.0, float(def_paco2_0), 1.0)
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("## 🎛️ Dynamic Ventilator Settings")
+st.sidebar.markdown("## 🎛️ Model Input")           # ← Tukar dari "Dynamic Ventilator Settings"
 
 def synced_input(label, min_val, max_val, default, step, key_prefix):
     slider_key = f"{key_prefix}_slider"
     num_key = f"{key_prefix}_num"
     
-    # Reset state jika nilai default berbeza (contohnya selepas upload fail baru)
     if slider_key not in st.session_state or st.session_state.get(f"{key_prefix}_last_def") != default:
         st.session_state[slider_key] = default
         st.session_state[num_key] = default
@@ -333,22 +332,28 @@ st.sidebar.markdown("---")
 st.sidebar.info("🎯 **Clinical Goal:** Reduce routine invasive blood sampling from 8 times/day (every 3h) down to targeted draws only.")
 
 # ------------------------------------------------------------------
-# 3. FORECASTING ENGINE
+# 3. FORECASTING ENGINE (Lactate → PaCO2)
 # ------------------------------------------------------------------
 hours = [0, 3, 6, 9, 12, 15, 18, 21, 24]
 fio2_dec = fio2 / 100.0
 
-pao2_trajectory, ph_trajectory, lactate_trajectory = [], [], []
+pao2_trajectory, ph_trajectory, paco2_trajectory = [], [], []
 for h in hours:
     pao2_h = pao2_0 + (fio2_dec * 40 * (h/12)) - (rr * 0.4 * (h/12)) + np.sin(h/3)*2
     ph_h = ph_0 - ((rr - 18) * 0.002 * (h/12)) - np.cos(h/4)*0.01
-    lac_h = lactate_0 + ((100 - spo2) * 0.05 * (h/12)) + (h * 0.02)
+    # PaCO2: RR naik → PaCO2 turun (hyperventilation), RR turun → PaCO2 naik
+    paco2_h = paco2_0 - ((rr - 18) * 0.8 * (h/12)) + np.sin(h/4)*1.5
     pao2_trajectory.append(round(pao2_h, 2))
     ph_trajectory.append(round(ph_h, 2))
-    lactate_trajectory.append(round(lac_h, 2))
+    paco2_trajectory.append(round(paco2_h, 2))
 
+# Threshold PaCO2: normal 35-45, critical <30 (hypocapnia) atau >50 (hypercapnia)
 critical_sampling_hours = [hours[i] for i in range(len(hours))
-                          if pao2_trajectory[i] < 70 or ph_trajectory[i] < 7.30 or lactate_trajectory[i] > 3.0]
+                          if pao2_trajectory[i] < 70 
+                          or ph_trajectory[i] < 7.30 
+                          or ph_trajectory[i] > 7.50
+                          or paco2_trajectory[i] < 30 
+                          or paco2_trajectory[i] > 50]
 
 # ==================================================================
 # SECTION 1: PREDICTIONS
@@ -382,13 +387,13 @@ with col2:
     ''', unsafe_allow_html=True)
 
 with col3:
-    d = lactate_trajectory[-1] - lactate_0
+    d = paco2_trajectory[-1] - paco2_0
     arrow = "▲" if d >= 0 else "▼"
     cls = "metric-delta-neg" if d >= 0 else "metric-delta-pos"
     st.markdown(f'''
         <div class="metric-card">
-            <div class="metric-label">24h Next Predicted Lactate</div>
-            <div class="metric-value">{lactate_trajectory[-1]} <span class="metric-unit">mmol/L</span></div>
+            <div class="metric-label">24h Next Predicted PaCO2</div>
+            <div class="metric-value">{paco2_trajectory[-1]} <span class="metric-unit">mmHg</span></div>
             <div class="{cls}">{arrow} {abs(d):.1f} vs Hour 0</div>
         </div>
     ''', unsafe_allow_html=True)
@@ -445,8 +450,8 @@ with col_vis1:
         marker=dict(size=6, color=GREEN)
     ))
     fig_line.add_trace(go.Scatter(
-        x=hours, y=[l*20 for l in lactate_trajectory], mode='lines+markers',
-        name='Lactate (×20 Scale)',
+        x=hours, y=[p*2 for p in paco2_trajectory], mode='lines+markers',   # PaCO2 ×2 scale
+        name='PaCO2 (×2 Scale)',
         line=dict(color=AMBER, width=2, dash='dot'),
         marker=dict(size=6, color=AMBER)
     ))
@@ -580,19 +585,19 @@ st.table(pd.DataFrame(metrics_data))
 # ------------------------------------------------------------------
 st.markdown("""
     <div class="footer">
-        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 2.7 ·
+        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 2.8 ·
         © 2024 Faculty of Electrical Engineering, UiTM Pasir Gudang<br>
         For clinical decision support only — always verify with attending physician.
     </div>
 """, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
-# 5. INTEGRASI BUTANG TERAPUNG: "NEX GLOW ORB" (BOTTOM-CENTER & SCROLL-LOCK)
+# 5. INTEGRASI BUTANG TERAPUNG: "NEX GLOW ORB"
 # ------------------------------------------------------------------
 telemetry_payload = {
     "pao2_24h": pao2_trajectory[-1],
     "ph_24h": ph_trajectory[-1],
-    "lactate_24h": lactate_trajectory[-1],
+    "paco2_24h": paco2_trajectory[-1],       # ← Tukar dari lactate_24h
     "critical_hours": critical_sampling_hours,
     "fio2": fio2,
     "rr": rr,
@@ -608,13 +613,11 @@ floating_orb_script = f"""
     const parentDoc = window.parent.document;
     const telemetry = {telemetry_json};
 
-    // Bersihkan elemen lama jika Streamlit render semula
     const existing = parentDoc.getElementById('nex-floating-root');
     if (existing) {{
         existing.remove();
     }}
 
-    // 1. Suntik Gaya CSS Terkunci di Tengah Bahagian Bawah Skrin
     const styleId = 'nex-floating-style';
     let style = parentDoc.getElementById(styleId);
     if (!style) {{
@@ -724,129 +727,8 @@ floating_orb_script = f"""
         }}
     `;
 
-    // 2. Cipta Elemen Terapung
     const root = parentDoc.createElement('div');
     root.id = 'nex-floating-root';
     root.innerHTML = `
         <div id="nexBubbleBox" class="nex-bubble-container">
-            <div style="color: #38BDF8; font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">⚡ NEX Clinical Copilot</div>
-            <div id="nexBubbleContent">Telemetry Synchronized. Tap to initiate briefing.</div>
-        </div>
-
-        <button id="nexOrbTrigger" class="nex-orb-button" title="Tap to talk to NEX">
-            <div class="nex-pulse-ring"></div>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                <line x1="12" y1="19" x2="12" y2="22"></line>
-            </svg>
-        </button>
-        <div id="nexStatusLabel" class="nex-subtext">TAP TO TALK TO NEX</div>
-    `;
-    parentDoc.body.appendChild(root);
-
-    // 3. Logik Interaksi Suara (STT & TTS)
-    const btn = parentDoc.getElementById('nexOrbTrigger');
-    const bubbleBox = parentDoc.getElementById('nexBubbleBox');
-    const bubbleContent = parentDoc.getElementById('nexBubbleContent');
-    const statusLabel = parentDoc.getElementById('nexStatusLabel');
-
-    let isListening = false;
-
-    function speak(text) {{
-        if (!('speechSynthesis' in window)) return;
-        window.speechSynthesis.cancel();
-        const utter = new SpeechSynthesisUtterance(text);
-        utter.rate = 1.05;
-        utter.pitch = 0.95;
-        const voices = window.speechSynthesis.getVoices();
-        const uk = voices.find(v => v.lang === 'en-GB' || v.name.includes('UK') || v.name.includes('British'));
-        if (uk) utter.voice = uk;
-        window.speechSynthesis.speak(utter);
-    }}
-
-    function answer(query) {{
-        const q = query.toLowerCase();
-        if (q.includes("status") || q.includes("briefing") || q.includes("update") || q.includes("patient")) {{
-            if (telemetry.critical_hours.length > 0) {{
-                return "Good day, Doctor. Critical trajectories detected. PaO2 is at " + telemetry.pao2_24h + 
-                       " mmHg while serum lactate spikes to " + telemetry.lactate_24h + " mmol/L. Targeted blood draw required at Hour " + 
-                       telemetry.critical_hours.join(", ") + ".";
-            }} else {{
-                return "Good day, Doctor. Patient trajectory is completely stable. PaO2 is projected at " + telemetry.pao2_24h + 
-                       " mmHg with safe lactate levels. Routine invasive draws can be safely deferred.";
-            }}
-        }} else if (q.includes("lactate") || q.includes("laktat")) {{
-            return "Serum lactate is projected to reach " + telemetry.lactate_24h + " mmol/L at the 24-hour mark.";
-        }} else if (q.includes("pao2") || q.includes("oxygen")) {{
-            return "Predicted PaO2 at 24 hours is " + telemetry.pao2_24h + " mmHg under current FiO2 setting of " + telemetry.fio2 + " percent.";
-        }} else {{
-            return "Telemetry active, Doctor. Current 24-hour forecast: PaO2 is " + telemetry.pao2_24h + " mmHg, and Lactate is " + telemetry.lactate_24h + " mmol/L.";
-        }}
-    }}
-
-    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    function bindRecognition(recognizer) {{
-        recognizer.onstart = () => {{
-            isListening = true;
-            btn.classList.add('listening');
-            statusLabel.innerText = "NEX IS LISTENING...";
-            statusLabel.style.color = "#F43F5E";
-            bubbleBox.style.display = "block";
-            bubbleContent.innerText = "Listening to clinical command...";
-        }};
-
-        recognizer.onresult = (e) => {{
-            const speechText = e.results[0][0].transcript;
-            statusLabel.innerText = "PROCESSING...";
-            statusLabel.style.color = "#38BDF8";
-            
-            const reply = answer(speechText);
-            bubbleContent.innerHTML = "<strong>You:</strong> \\"" + speechText + "\\" <br><br><strong>NEX:</strong> " + reply;
-            speak(reply);
-        }};
-
-        recognizer.onend = () => {{
-            isListening = false;
-            btn.classList.remove('listening');
-            statusLabel.innerText = "TAP TO TALK TO NEX";
-            statusLabel.style.color = "#93C5FD";
-        }};
-
-        recognizer.onerror = () => {{
-            isListening = false;
-            btn.classList.remove('listening');
-            statusLabel.innerText = "TAP TO TALK TO NEX";
-            statusLabel.style.color = "#93C5FD";
-        }};
-    }}
-
-    if (SpeechRec) {{
-        const recognizer = new SpeechRec();
-        recognizer.continuous = false;
-        recognizer.lang = 'en-US';
-
-        btn.onclick = () => {{
-            if (!isListening) {{
-                recognizer.start();
-            }} else {{
-                recognizer.stop();
-            }}
-        }};
-
-        bindRecognition(recognizer);
-    }} else {{
-        btn.onclick = () => {{
-            bubbleBox.style.display = "block";
-            const reply = answer("status");
-            bubbleContent.innerHTML = "<strong>NEX Briefing:</strong> " + reply;
-            speak(reply);
-        }};
-    }}
-}})();
-</script>
-"""
-
-# Suntik terus ke parent DOM
-components.html(floating_orb_script, height=0)
+            <div style="color: #38BDF8; font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">⚡ NEX
