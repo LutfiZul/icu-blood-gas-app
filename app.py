@@ -17,6 +17,56 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ============================================
+# DEBUG BLOCK - BUANG LEPAS FIX
+# ============================================
+st.sidebar.markdown("### 🔍 DEBUG INFO")
+try:
+    _keys = list(st.secrets.keys())
+    st.sidebar.write(f"**Secrets keys:** `{_keys}`")
+    
+    if "gcp_service_account" in st.secrets:
+        _sa = st.secrets["gcp_service_account"]
+        st.sidebar.write(f"✅ `gcp_service_account` found")
+        st.sidebar.write(f"- project_id: `{_sa.get('project_id', 'MISSING')}`")
+        st.sidebar.write(f"- client_email: `{_sa.get('client_email', 'MISSING')}`")
+        _pk = _sa.get("private_key", "")
+        st.sidebar.write(f"- private_key length: `{len(_pk)}` chars")
+        st.sidebar.write(f"- private_key starts: `{_pk[:30]}...`")
+    else:
+        st.sidebar.error("❌ `gcp_service_account` NOT FOUND")
+    
+    if "bigquery" in st.secrets:
+        st.sidebar.write(f"✅ `bigquery` section found")
+        _bq = st.secrets["bigquery"]
+        st.sidebar.write(f"- project: `{_bq.get('project_id', 'MISSING')}`")
+        st.sidebar.write(f"- dataset: `{_bq.get('dataset', 'MISSING')}`")
+        st.sidebar.write(f"- table: `{_bq.get('table', 'MISSING')}`")
+    else:
+        st.sidebar.error("❌ `bigquery` section NOT FOUND")
+        
+except Exception as _e:
+    st.sidebar.error(f"❌ Secrets error: {_e}")
+    st.sidebar.exception(_e)
+
+try:
+    from google.cloud import bigquery as _bq
+    from google.oauth2 import service_account as _sa_mod
+    _creds = dict(st.secrets["gcp_service_account"])
+    if "private_key" in _creds:
+        _creds["private_key"] = _creds["private_key"].replace("\\n", "\n")
+    _credentials = _sa_mod.Credentials.from_service_account_info(_creds)
+    _client = _bq.Client(credentials=_credentials, project=_creds["project_id"])
+    st.sidebar.success("✅ BigQuery client created!")
+except Exception as _e:
+    st.sidebar.error(f"❌ BigQuery client error: {_e}")
+    st.sidebar.exception(_e)
+
+st.sidebar.markdown("---")
+# ============================================
+# END DEBUG
+# ============================================
+
 # ------------------------------------------------------------------
 # BACKGROUND IMAGE
 # ------------------------------------------------------------------
@@ -218,7 +268,7 @@ def get_bq_client():
         credentials = service_account.Credentials.from_service_account_info(creds_dict)
         client = bigquery.Client(credentials=credentials, project=creds_dict["project_id"])
         return client
-    except Exception:
+    except Exception as e:
         return None
 
 def get_bq_table():
@@ -250,6 +300,7 @@ def search_patients(query="", limit=50):
     if not CLOUD_ENABLED:
         return pd.DataFrame()
     try:
+        from google.cloud import bigquery
         if query and query.strip():
             sql = f"""
                 SELECT patient_id, COUNT(*) as num_records,
@@ -261,7 +312,6 @@ def search_patients(query="", limit=50):
                 ORDER BY last_seen DESC
                 LIMIT {int(limit)}
             """
-            from google.cloud import bigquery
             job_config = bigquery.QueryJobConfig(
                 query_parameters=[bigquery.ScalarQueryParameter("q", "STRING", f"%{query.lower()}%")]
             )
@@ -277,7 +327,7 @@ def search_patients(query="", limit=50):
                 LIMIT {int(limit)}
             """
             return bq_client.query(sql).to_dataframe()
-    except Exception as e:
+    except Exception:
         return pd.DataFrame()
 
 def get_patient_latest(patient_id):
@@ -440,11 +490,11 @@ search_q = st.sidebar.text_input("Search Patient ID", value=st.session_state.sea
 
 col_s1, col_s2 = st.sidebar.columns([3, 1])
 with col_s1:
-    if st.button("🔎 Search", use_container_width=True):
+    if st.button("🔎 Search", width='stretch'):
         st.session_state.search_query = search_q
         st.rerun()
 with col_s2:
-    if st.button("📋 All", use_container_width=True):
+    if st.button("📋", width='stretch'):
         st.session_state.search_query = ""
         st.rerun()
 
@@ -466,7 +516,7 @@ if CLOUD_ENABLED:
             selected_pid = picked.split(" · ")[0].replace("👤 ", "").strip()
             c1, c2 = st.sidebar.columns(2)
             with c1:
-                if st.button("📥 Load", use_container_width=True, type="primary"):
+                if st.button("📥 Load", width='stretch', type="primary"):
                     rec = get_patient_latest(selected_pid)
                     if rec:
                         st.session_state.active_patient = rec
@@ -474,7 +524,7 @@ if CLOUD_ENABLED:
                     else:
                         st.sidebar.error("Not found")
             with c2:
-                if st.button("🗑️ Delete", use_container_width=True):
+                if st.button("🗑️ Del", width='stretch'):
                     ok, msg = delete_patient_records(selected_pid)
                     if ok:
                         st.sidebar.success(f"Deleted {selected_pid}")
@@ -485,13 +535,13 @@ if CLOUD_ENABLED:
         if st.session_state.search_query:
             st.sidebar.warning("No matching patient")
         else:
-            st.sidebar.info("No patients in registry yet")
+            st.sidebar.info("No patients yet")
 
 if st.session_state.active_patient is not None:
     st.sidebar.markdown("---")
     pid_active = st.session_state.active_patient.get("patient_id", "?")
     st.sidebar.success(f"✅ Active: `{pid_active}`")
-    if st.sidebar.button("✖ Clear Active", use_container_width=True):
+    if st.sidebar.button("✖ Clear", width='stretch'):
         st.session_state.active_patient = None
         st.rerun()
 
@@ -584,7 +634,7 @@ def synced_input(label, min_val, max_val, default, step, key_prefix):
     with c1:
         val = st.slider(label, min_val, max_val, key=slider_key, on_change=update_num, step=step)
     with c2:
-        st.number_input("", min_val, max_val, key=num_key, value=st.session_state[slider_key],
+        st.number_input(label + "_num", min_val, max_val, key=num_key, value=st.session_state[slider_key],
                        on_change=update_slider, label_visibility="hidden", step=step)
     return val
 
@@ -604,7 +654,7 @@ if CLOUD_ENABLED and (uploaded_file is not None or st.session_state.active_patie
     st.sidebar.markdown("## ☁️ Cloud Sync")
     save_pid = st.sidebar.text_input("Patient ID", value=str(patient_record.get("patient_id") or ""),
                                       placeholder="ICU-2024-001", key="save_pid")
-    if st.sidebar.button("💾 Save to BigQuery", use_container_width=True, type="primary"):
+    if st.sidebar.button("💾 Save to BigQuery", width='stretch', type="primary"):
         if not save_pid.strip():
             st.sidebar.error("Patient ID required")
         else:
@@ -739,7 +789,7 @@ st.write("")
 if len(critical_sampling_hours) == 0:
     st.markdown('<div class="status-stable">🟢 <strong>REDUCED SAMPLING BENEFIT:</strong> Patient trajectory STABLE. No routine invasive draws required for 24 hours!</div>', unsafe_allow_html=True)
 else:
-    st.markdown(f'<div class="status-warning">🚨 <strong>TARGETED BLOOD DRAW REQUIRED:</strong> Recommended ONLY at Hour(s): <strong>{", ".join(map(str, critical_sampling_hours))}</strong> (Skipping non-critical hours).</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="status-warning">🚨 <strong>TARGETED BLOOD DRAW REQUIRED:</strong> Recommended ONLY at Hour(s): <strong>{", ".join(map(str, critical_sampling_hours))}</strong></div>', unsafe_allow_html=True)
 
 st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
 
@@ -774,7 +824,7 @@ with col_vis1:
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10, color=FONT), bgcolor='rgba(0,0,0,0)'),
         hovermode='x unified',
         xaxis=dict(gridcolor=GRID, linecolor=GRID, color=FONT), yaxis=dict(gridcolor=GRID, linecolor=GRID, color=FONT))
-    st.plotly_chart(fig_line, use_container_width=True)
+    st.plotly_chart(fig_line, width='stretch')
 
 with col_vis2:
     st.markdown("**PANEL B: ANFIS 3D Fuzzy Surface**")
@@ -789,7 +839,7 @@ with col_vis2:
         yaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID, tickfont=dict(size=9, color=FONT), title_font=dict(size=10, color=FONT)),
         zaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID, tickfont=dict(size=9, color=FONT), title_font=dict(size=10, color=FONT))),
         margin=dict(l=5, r=5, b=5, t=5), height=380, paper_bgcolor='rgba(0,0,0,0)', font=dict(family='Inter', color=FONT))
-    st.plotly_chart(fig_3d, use_container_width=True)
+    st.plotly_chart(fig_3d, width='stretch')
 
 with col_vis3:
     st.markdown("**PANEL C: SHAP Feature Importance**")
@@ -801,7 +851,7 @@ with col_vis3:
     fig_bar.update_layout(xaxis_title="SHAP Value Impact", yaxis_title="", margin=dict(l=10, r=10, b=40, t=10), height=380,
         plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font=dict(color=FONT, size=11, family='Inter'),
         xaxis=dict(range=[0, 0.55], gridcolor=GRID, linecolor=GRID, color=FONT), yaxis=dict(gridcolor='rgba(0,0,0,0)', linecolor=GRID, color=FONT))
-    st.plotly_chart(fig_bar, use_container_width=True)
+    st.plotly_chart(fig_bar, width='stretch')
 
 st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
 
@@ -828,95 +878,14 @@ if st.session_state.active_patient is not None and CLOUD_ENABLED:
         with st.spinner("Loading history..."):
             hist = get_patient_history(pid_history)
         if len(hist) > 0:
-            st.dataframe(hist, use_container_width=True)
+            st.dataframe(hist, width='stretch')
         else:
             st.info("No history found")
 
 st.markdown("""
     <div class="footer">
-        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 3.2 · Cloud-Enabled<br>
+        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 3.3 · Cloud-Enabled<br>
         © 2024 Faculty of Electrical Engineering, UiTM Pasir Gudang<br>
         For clinical decision support only — always verify with attending physician.
     </div>
 """, unsafe_allow_html=True)
-
-# ------------------------------------------------------------------
-# 16. FLOATING ORB (NEX)
-# ------------------------------------------------------------------
-telemetry_payload = {
-    "pao2_24h": pao2_trajectory[-1], "ph_24h": ph_trajectory[-1],
-    "paco2_24h": paco2_trajectory[-1], "critical_hours": critical_sampling_hours,
-    "fio2": fio2, "rr": rr, "spo2": spo2, "hr": hr
-}
-telemetry_json = json.dumps(telemetry_payload)
-
-floating_orb_script = """
-<script>
-(function() {
-    const parentDoc = window.parent.document;
-    const telemetry = TELEMETRY_PLACEHOLDER;
-    const existing = parentDoc.getElementById('nex-floating-root');
-    if (existing) { existing.remove(); }
-    const styleId = 'nex-floating-style';
-    let style = parentDoc.getElementById(styleId);
-    if (!style) { style = parentDoc.createElement('style'); style.id = styleId; parentDoc.head.appendChild(style); }
-    style.innerHTML = `
-        #nex-floating-root { position: fixed !important; bottom: 24px !important; left: 50% !important; transform: translateX(-50%) !important; z-index: 9999999 !important; display: flex !important; flex-direction: column !important; align-items: center !important; pointer-events: none !important; font-family: 'Inter', sans-serif !important; }
-        .nex-bubble-container { pointer-events: auto !important; display: none; max-width: 420px; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(18px); border: 1px solid rgba(56, 189, 248, 0.5); box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(56, 189, 248, 0.3); color: #F8FAFC; padding: 14px 18px; border-radius: 16px; font-size: 13px; line-height: 1.5; margin-bottom: 14px; text-align: center; }
-        .nex-orb-button { pointer-events: auto !important; width: 68px; height: 68px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #38BDF8 0%, #2563EB 55%, #0F172A 100%); box-shadow: 0 0 25px rgba(56, 189, 248, 0.7), 0 0 50px rgba(37, 99, 235, 0.4); border: 2.5px solid rgba(255, 255, 255, 0.4); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease; position: relative; outline: none; }
-        .nex-orb-button:hover { transform: scale(1.1); box-shadow: 0 0 35px rgba(56, 189, 248, 0.9), 0 0 70px rgba(37, 99, 235, 0.6); }
-        .nex-pulse-ring { position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 2px solid #38BDF8; opacity: 0; pointer-events: none; }
-        .nex-orb-button.listening .nex-pulse-ring { animation: bottomPulse 1.6s infinite ease-out; }
-        .nex-orb-button.listening { background: radial-gradient(circle at 35% 35%, #F43F5E 0%, #E11D48 55%, #881337 100%); box-shadow: 0 0 40px rgba(244, 63, 94, 0.9); }
-        .nex-subtext { margin-top: 8px; font-size: 11px; font-weight: 700; color: #93C5FD; letter-spacing: 0.8px; pointer-events: none; background: rgba(15, 23, 42, 0.75); padding: 3px 12px; border-radius: 20px; border: 1px solid rgba(56, 189, 248, 0.3); }
-        @keyframes bottomPulse { 0% { transform: scale(1); opacity: 0.85; } 100% { transform: scale(2.2); opacity: 0; } }
-    `;
-    const root = parentDoc.createElement('div');
-    root.id = 'nex-floating-root';
-    root.innerHTML = `
-        <div id="nexBubbleBox" class="nex-bubble-container">
-            <div style="color: #38BDF8; font-weight: 800; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">⚡ NEX Clinical Copilot</div>
-            <div id="nexBubbleContent">Telemetry Synchronized. Tap to initiate briefing.</div>
-        </div>
-        <button id="nexOrbTrigger" class="nex-orb-button" title="Tap to talk to NEX">
-            <div class="nex-pulse-ring"></div>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                <line x1="12" y1="19" x2="12" y2="22"></line>
-            </svg>
-        </button>
-        <div id="nexStatusLabel" class="nex-subtext">TAP TO TALK TO NEX</div>
-    `;
-    parentDoc.body.appendChild(root);
-    const btn = parentDoc.getElementById('nexOrbTrigger');
-    const bubbleBox = parentDoc.getElementById('nexBubbleBox');
-    const bubbleContent = parentDoc.getElementById('nexBubbleContent');
-    const statusLabel = parentDoc.getElementById('nexStatusLabel');
-    let isListening = false;
-    function speak(text) { if (!('speechSynthesis' in window)) return; window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.rate = 1.05; u.pitch = 0.95; window.speechSynthesis.speak(u); }
-    function answer(query) {
-        const q = query.toLowerCase();
-        if (q.includes("status") || q.includes("briefing")) {
-            if (telemetry.critical_hours.length > 0) return "Good day, Doctor. Critical trajectories detected. PaO2 is at " + telemetry.pao2_24h + " mmHg while PaCO2 trends to " + telemetry.paco2_24h + " mmHg. Targeted blood draw required at Hour " + telemetry.critical_hours.join(", ") + ".";
-            return "Good day, Doctor. Patient trajectory is completely stable.";
-        } else if (q.includes("paco2")) return "Predicted PaCO2 at 24 hours is " + telemetry.paco2_24h + " mmHg.";
-        else if (q.includes("pao2")) return "Predicted PaO2 at 24 hours is " + telemetry.pao2_24h + " mmHg.";
-        return "Telemetry active. PaO2 is " + telemetry.pao2_24h + " mmHg, PaCO2 is " + telemetry.paco2_24h + " mmHg.";
-    }
-    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRec) {
-        const rec = new SpeechRec(); rec.continuous = false; rec.lang = 'en-US';
-        rec.onstart = () => { isListening = true; btn.classList.add('listening'); statusLabel.innerText = "NEX IS LISTENING..."; bubbleBox.style.display = "block"; bubbleContent.innerText = "Listening..."; };
-        rec.onresult = (e) => { const t = e.results[0][0].transcript; const r = answer(t); bubbleContent.innerHTML = "<strong>You:</strong> " + t + "<br><br><strong>NEX:</strong> " + r; speak(r); };
-        rec.onend = () => { isListening = false; btn.classList.remove('listening'); statusLabel.innerText = "TAP TO TALK TO NEX"; };
-        rec.onerror = () => { isListening = false; btn.classList.remove('listening'); statusLabel.innerText = "TAP TO TALK TO NEX"; };
-        btn.onclick = () => { if (!isListening) rec.start(); else rec.stop(); };
-    } else {
-        btn.onclick = () => { bubbleBox.style.display = "block"; const r = answer("status"); bubbleContent.innerHTML = "<strong>NEX:</strong> " + r; speak(r); };
-    }
-})();
-</script>
-"""
-floating_orb_script = floating_orb_script.replace("TELEMETRY_PLACEHOLDER", telemetry_json)
-components.html(floating_orb_script, height=0)
