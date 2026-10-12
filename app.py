@@ -248,7 +248,7 @@ uploaded_file = st.sidebar.file_uploader(
 # Nilai asal (Default)
 def_ph_0 = 7.38
 def_pao2_0 = 95.0
-def_paco2_0 = 40.0          # ← Tukar dari lactate ke PaCO2
+def_paco2_0 = 40.0
 def_hr = 85
 def_spo2 = 96
 def_rr = 18
@@ -264,7 +264,6 @@ if uploaded_file is not None:
             
         st.sidebar.success(f"Loaded: `{uploaded_file.name}` ({len(df_uploaded)} records)")
         
-        # Mapping nama kolum (case-insensitive)
         col_map = {c.lower().strip(): c for c in df_uploaded.columns}
         
         def get_val(keys, default_val):
@@ -299,7 +298,7 @@ pao2_0 = st.sidebar.number_input("Baseline PaO2 (mmHg)", 40.0, 300.0, float(def_
 paco2_0 = st.sidebar.number_input("Baseline PaCO2 (mmHg)", 20.0, 80.0, float(def_paco2_0), 1.0)
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("## 🎛️ Model Input")           # ← Tukar dari "Dynamic Ventilator Settings"
+st.sidebar.markdown("## 🎛️ Model Input")
 
 def synced_input(label, min_val, max_val, default, step, key_prefix):
     slider_key = f"{key_prefix}_slider"
@@ -341,13 +340,11 @@ pao2_trajectory, ph_trajectory, paco2_trajectory = [], [], []
 for h in hours:
     pao2_h = pao2_0 + (fio2_dec * 40 * (h/12)) - (rr * 0.4 * (h/12)) + np.sin(h/3)*2
     ph_h = ph_0 - ((rr - 18) * 0.002 * (h/12)) - np.cos(h/4)*0.01
-    # PaCO2: RR naik → PaCO2 turun (hyperventilation), RR turun → PaCO2 naik
     paco2_h = paco2_0 - ((rr - 18) * 0.8 * (h/12)) + np.sin(h/4)*1.5
     pao2_trajectory.append(round(pao2_h, 2))
     ph_trajectory.append(round(ph_h, 2))
     paco2_trajectory.append(round(paco2_h, 2))
 
-# Threshold PaCO2: normal 35-45, critical <30 (hypocapnia) atau >50 (hypercapnia)
 critical_sampling_hours = [hours[i] for i in range(len(hours))
                           if pao2_trajectory[i] < 70 
                           or ph_trajectory[i] < 7.30 
@@ -450,7 +447,7 @@ with col_vis1:
         marker=dict(size=6, color=GREEN)
     ))
     fig_line.add_trace(go.Scatter(
-        x=hours, y=[p*2 for p in paco2_trajectory], mode='lines+markers',   # PaCO2 ×2 scale
+        x=hours, y=[p*2 for p in paco2_trajectory], mode='lines+markers',
         name='PaCO2 (×2 Scale)',
         line=dict(color=AMBER, width=2, dash='dot'),
         marker=dict(size=6, color=AMBER)
@@ -592,12 +589,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
-# 5. INTEGRASI BUTANG TERAPUNG: "NEX GLOW ORB"
+# 5. FLOATING ORB (NEX VOICE ASSISTANT)
 # ------------------------------------------------------------------
 telemetry_payload = {
     "pao2_24h": pao2_trajectory[-1],
     "ph_24h": ph_trajectory[-1],
-    "paco2_24h": paco2_trajectory[-1],       # ← Tukar dari lactate_24h
+    "paco2_24h": paco2_trajectory[-1],
     "critical_hours": critical_sampling_hours,
     "fio2": fio2,
     "rr": rr,
@@ -607,27 +604,25 @@ telemetry_payload = {
 
 telemetry_json = json.dumps(telemetry_payload)
 
-floating_orb_script = f"""
+floating_orb_script = """
 <script>
-(function() {{
+(function() {
     const parentDoc = window.parent.document;
-    const telemetry = {telemetry_json};
+    const telemetry = TELEMETRY_PLACEHOLDER;
 
     const existing = parentDoc.getElementById('nex-floating-root');
-    if (existing) {{
-        existing.remove();
-    }}
+    if (existing) { existing.remove(); }
 
     const styleId = 'nex-floating-style';
     let style = parentDoc.getElementById(styleId);
-    if (!style) {{
+    if (!style) {
         style = parentDoc.createElement('style');
         style.id = styleId;
         parentDoc.head.appendChild(style);
-    }}
+    }
     
     style.innerHTML = `
-        #nex-floating-root {{
+        #nex-floating-root {
             position: fixed !important;
             bottom: 24px !important;
             left: 50% !important;
@@ -636,18 +631,15 @@ floating_orb_script = f"""
             display: flex !important;
             flex-direction: column !important;
             align-items: center !important;
-            justify-content: flex-end !important;
             pointer-events: none !important;
-            font-family: 'Inter', -apple-system, sans-serif !important;
-        }}
-
-        .nex-bubble-container {{
+            font-family: 'Inter', sans-serif !important;
+        }
+        .nex-bubble-container {
             pointer-events: auto !important;
             display: none;
             max-width: 420px;
             background: rgba(15, 23, 42, 0.95);
             backdrop-filter: blur(18px);
-            -webkit-backdrop-filter: blur(18px);
             border: 1px solid rgba(56, 189, 248, 0.5);
             box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(56, 189, 248, 0.3);
             color: #F8FAFC;
@@ -657,10 +649,8 @@ floating_orb_script = f"""
             line-height: 1.5;
             margin-bottom: 14px;
             text-align: center;
-            animation: nexBottomPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }}
-
-        .nex-orb-button {{
+        }
+        .nex-orb-button {
             pointer-events: auto !important;
             width: 68px;
             height: 68px;
@@ -672,17 +662,15 @@ floating_orb_script = f"""
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.3s ease;
             position: relative;
             outline: none;
-        }}
-
-        .nex-orb-button:hover {{
+        }
+        .nex-orb-button:hover {
             transform: scale(1.1);
             box-shadow: 0 0 35px rgba(56, 189, 248, 0.9), 0 0 70px rgba(37, 99, 235, 0.6);
-        }}
-
-        .nex-pulse-ring {{
+        }
+        .nex-pulse-ring {
             position: absolute;
             width: 100%;
             height: 100%;
@@ -690,45 +678,137 @@ floating_orb_script = f"""
             border: 2px solid #38BDF8;
             opacity: 0;
             pointer-events: none;
-        }}
-
-        .nex-orb-button.listening .nex-pulse-ring {{
+        }
+        .nex-orb-button.listening .nex-pulse-ring {
             animation: bottomPulse 1.6s infinite ease-out;
-        }}
-
-        .nex-orb-button.listening {{
+        }
+        .nex-orb-button.listening {
             background: radial-gradient(circle at 35% 35%, #F43F5E 0%, #E11D48 55%, #881337 100%);
             box-shadow: 0 0 40px rgba(244, 63, 94, 0.9);
             border-color: rgba(255, 255, 255, 0.8);
-        }}
-
-        .nex-subtext {{
+        }
+        .nex-subtext {
             margin-top: 8px;
             font-size: 11px;
             font-weight: 700;
             color: #93C5FD;
             letter-spacing: 0.8px;
-            text-shadow: 0 2px 6px rgba(0,0,0,0.9);
             pointer-events: none;
             background: rgba(15, 23, 42, 0.75);
             padding: 3px 12px;
             border-radius: 20px;
             border: 1px solid rgba(56, 189, 248, 0.3);
-        }}
-
-        @keyframes bottomPulse {{
-            0% {{ transform: scale(1); opacity: 0.85; }}
-            100% {{ transform: scale(2.2); opacity: 0; }}
-        }}
-
-        @keyframes nexBottomPop {{
-            from {{ opacity: 0; transform: translateY(12px) scale(0.95); }}
-            to {{ opacity: 1; transform: translateY(0) scale(1); }}
-        }}
+        }
+        @keyframes bottomPulse {
+            0% { transform: scale(1); opacity: 0.85; }
+            100% { transform: scale(2.2); opacity: 0; }
+        }
     `;
 
     const root = parentDoc.createElement('div');
     root.id = 'nex-floating-root';
     root.innerHTML = `
         <div id="nexBubbleBox" class="nex-bubble-container">
-            <div style="color: #38BDF8; font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">⚡ NEX
+            <div style="color: #38BDF8; font-weight: 800; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">⚡ NEX Clinical Copilot</div>
+            <div id="nexBubbleContent">Telemetry Synchronized. Tap to initiate briefing.</div>
+        </div>
+        <button id="nexOrbTrigger" class="nex-orb-button" title="Tap to talk to NEX">
+            <div class="nex-pulse-ring"></div>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="22"></line>
+            </svg>
+        </button>
+        <div id="nexStatusLabel" class="nex-subtext">TAP TO TALK TO NEX</div>
+    `;
+    parentDoc.body.appendChild(root);
+
+    const btn = parentDoc.getElementById('nexOrbTrigger');
+    const bubbleBox = parentDoc.getElementById('nexBubbleBox');
+    const bubbleContent = parentDoc.getElementById('nexBubbleContent');
+    const statusLabel = parentDoc.getElementById('nexStatusLabel');
+
+    let isListening = false;
+
+    function speak(text) {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.rate = 1.05;
+        utter.pitch = 0.95;
+        window.speechSynthesis.speak(utter);
+    }
+
+    function answer(query) {
+        const q = query.toLowerCase();
+        if (q.includes("status") || q.includes("briefing") || q.includes("update") || q.includes("patient")) {
+            if (telemetry.critical_hours.length > 0) {
+                return "Good day, Doctor. Critical trajectories detected. PaO2 is at " + telemetry.pao2_24h + 
+                       " mmHg while PaCO2 trends to " + telemetry.paco2_24h + " mmHg. Targeted blood draw required at Hour " + 
+                       telemetry.critical_hours.join(", ") + ".";
+            } else {
+                return "Good day, Doctor. Patient trajectory is completely stable. PaO2 is projected at " + telemetry.pao2_24h + 
+                       " mmHg with safe PaCO2 levels. Routine invasive draws can be safely deferred.";
+            }
+        } else if (q.includes("paco2") || q.includes("co2") || q.includes("carbon")) {
+            return "Predicted PaCO2 at 24 hours is " + telemetry.paco2_24h + " mmHg.";
+        } else if (q.includes("pao2") || q.includes("oxygen")) {
+            return "Predicted PaO2 at 24 hours is " + telemetry.pao2_24h + " mmHg under current FiO2 of " + telemetry.fio2 + " percent.";
+        } else {
+            return "Telemetry active, Doctor. Current 24-hour forecast: PaO2 is " + telemetry.pao2_24h + " mmHg, and PaCO2 is " + telemetry.paco2_24h + " mmHg.";
+        }
+    }
+
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (SpeechRec) {
+        const recognizer = new SpeechRec();
+        recognizer.continuous = false;
+        recognizer.lang = 'en-US';
+
+        recognizer.onstart = () => {
+            isListening = true;
+            btn.classList.add('listening');
+            statusLabel.innerText = "NEX IS LISTENING...";
+            bubbleBox.style.display = "block";
+            bubbleContent.innerText = "Listening to clinical command...";
+        };
+        recognizer.onresult = (e) => {
+            const speechText = e.results[0][0].transcript;
+            statusLabel.innerText = "PROCESSING...";
+            const reply = answer(speechText);
+            bubbleContent.innerHTML = "<strong>You:</strong> " + speechText + "<br><br><strong>NEX:</strong> " + reply;
+            speak(reply);
+        };
+        recognizer.onend = () => {
+            isListening = false;
+            btn.classList.remove('listening');
+            statusLabel.innerText = "TAP TO TALK TO NEX";
+        };
+        recognizer.onerror = () => {
+            isListening = false;
+            btn.classList.remove('listening');
+            statusLabel.innerText = "TAP TO TALK TO NEX";
+        };
+
+        btn.onclick = () => {
+            if (!isListening) recognizer.start();
+            else recognizer.stop();
+        };
+    } else {
+        btn.onclick = () => {
+            bubbleBox.style.display = "block";
+            const reply = answer("status");
+            bubbleContent.innerHTML = "<strong>NEX Briefing:</strong> " + reply;
+            speak(reply);
+        };
+    }
+})();
+</script>
+"""
+
+# Replace placeholder dengan data JSON sebenar
+floating_orb_script = floating_orb_script.replace("TELEMETRY_PLACEHOLDER", telemetry_json)
+
+components.html(floating_orb_script, height=0)
