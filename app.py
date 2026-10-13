@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import json
 import base64
+import time
 from datetime import datetime
 
 # ------------------------------------------------------------------
@@ -16,56 +17,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# ============================================
-# DEBUG BLOCK - BUANG LEPAS FIX
-# ============================================
-st.sidebar.markdown("### 🔍 DEBUG INFO")
-try:
-    _keys = list(st.secrets.keys())
-    st.sidebar.write(f"**Secrets keys:** `{_keys}`")
-    
-    if "gcp_service_account" in st.secrets:
-        _sa = st.secrets["gcp_service_account"]
-        st.sidebar.write(f"✅ `gcp_service_account` found")
-        st.sidebar.write(f"- project_id: `{_sa.get('project_id', 'MISSING')}`")
-        st.sidebar.write(f"- client_email: `{_sa.get('client_email', 'MISSING')}`")
-        _pk = _sa.get("private_key", "")
-        st.sidebar.write(f"- private_key length: `{len(_pk)}` chars")
-        st.sidebar.write(f"- private_key starts: `{_pk[:30]}...`")
-    else:
-        st.sidebar.error("❌ `gcp_service_account` NOT FOUND")
-    
-    if "bigquery" in st.secrets:
-        st.sidebar.write(f"✅ `bigquery` section found")
-        _bq = st.secrets["bigquery"]
-        st.sidebar.write(f"- project: `{_bq.get('project_id', 'MISSING')}`")
-        st.sidebar.write(f"- dataset: `{_bq.get('dataset', 'MISSING')}`")
-        st.sidebar.write(f"- table: `{_bq.get('table', 'MISSING')}`")
-    else:
-        st.sidebar.error("❌ `bigquery` section NOT FOUND")
-        
-except Exception as _e:
-    st.sidebar.error(f"❌ Secrets error: {_e}")
-    st.sidebar.exception(_e)
-
-try:
-    from google.cloud import bigquery as _bq
-    from google.oauth2 import service_account as _sa_mod
-    _creds = dict(st.secrets["gcp_service_account"])
-    if "private_key" in _creds:
-        _creds["private_key"] = _creds["private_key"].replace("\\n", "\n")
-    _credentials = _sa_mod.Credentials.from_service_account_info(_creds)
-    _client = _bq.Client(credentials=_credentials, project=_creds["project_id"])
-    st.sidebar.success("✅ BigQuery client created!")
-except Exception as _e:
-    st.sidebar.error(f"❌ BigQuery client error: {_e}")
-    st.sidebar.exception(_e)
-
-st.sidebar.markdown("---")
-# ============================================
-# END DEBUG
-# ============================================
 
 # ------------------------------------------------------------------
 # BACKGROUND IMAGE
@@ -243,8 +194,173 @@ st.markdown(f"""
         margin-bottom: 90px;
         border-top: 1px solid rgba(59, 130, 246, 0.2);
     }}
+    
+    /* ============ UPLOAD ANIMATION STYLES ============ */
+    .upload-status-box {{
+        padding: 14px 18px;
+        border-radius: 12px;
+        margin-top: 12px;
+        font-weight: 600;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        animation: slideIn 0.4s ease;
+    }}
+    
+    .upload-success {{
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.20) 100%);
+        border: 1px solid rgba(16, 185, 129, 0.5);
+        border-left: 4px solid #10B981;
+        color: #A7F3D0;
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+    }}
+    
+    .upload-error {{
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(185, 28, 28, 0.20) 100%);
+        border: 1px solid rgba(239, 68, 68, 0.5);
+        border-left: 4px solid #EF4444;
+        color: #FCA5A5;
+        box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+        animation: shake 0.5s ease;
+    }}
+    
+    .upload-loading {{
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(37, 99, 235, 0.20) 100%);
+        border: 1px solid rgba(59, 130, 246, 0.5);
+        border-left: 4px solid #3B82F6;
+        color: #93C5FD;
+    }}
+    
+    @keyframes slideIn {{
+        from {{ opacity: 0; transform: translateX(-20px); }}
+        to {{ opacity: 1; transform: translateX(0); }}
+    }}
+    
+    @keyframes shake {{
+        0%, 100% {{ transform: translateX(0); }}
+        10%, 30%, 50%, 70%, 90% {{ transform: translateX(-8px); }}
+        20%, 40%, 60%, 80% {{ transform: translateX(8px); }}
+    }}
+    
+    @keyframes checkmark {{
+        0% {{ transform: scale(0) rotate(-45deg); opacity: 0; }}
+        50% {{ transform: scale(1.3) rotate(-45deg); opacity: 1; }}
+        100% {{ transform: scale(1) rotate(-45deg); opacity: 1; }}
+    }}
+    
+    .checkmark-icon {{
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        border-bottom: 3px solid currentColor;
+        border-right: 3px solid currentColor;
+        transform: rotate(-45deg);
+        animation: checkmark 0.5s ease;
+    }}
+    
+    .error-icon {{
+        display: inline-block;
+        font-size: 20px;
+        animation: shake 0.5s ease;
+    }}
+    
+    .spinner {{
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 3px solid rgba(147, 197, 253, 0.3);
+        border-top-color: #93C5FD;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }}
+    
+    @keyframes spin {{
+        to {{ transform: rotate(360deg); }}
+    }}
+    
+    /* Fade in animation for dashboard */
+    .fade-in {{
+        animation: fadeIn 0.6s ease;
+    }}
+    
+    @keyframes fadeIn {{
+        from {{ opacity: 0; transform: translateY(10px); }}
+        to {{ opacity: 1; transform: translateY(0); }}
+    }}
     </style>
 """, unsafe_allow_html=True)
+
+# ------------------------------------------------------------------
+# UPLOAD ANIMATION FUNCTIONS
+# ------------------------------------------------------------------
+def show_upload_success(message="File uploaded successfully!"):
+    """Display success animation."""
+    st.sidebar.markdown(f'''
+        <div class="upload-status-box upload-success">
+            <span class="checkmark-icon"></span>
+            <span>{message}</span>
+        </div>
+    ''', unsafe_allow_html=True)
+    # Particle burst effect
+    components.html("""
+    <script>
+    (function() {
+        const parent = window.parent.document;
+        const old = parent.getElementById('success-particles');
+        if (old) old.remove();
+        
+        const container = parent.createElement('div');
+        container.id = 'success-particles';
+        container.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:99999;';
+        parent.body.appendChild(container);
+        
+        for (let i = 0; i < 30; i++) {
+            const p = parent.createElement('div');
+            const colors = ['#10B981', '#34D399', '#6EE7B7', '#3B82F6', '#60A5FA'];
+            p.style.cssText = `
+                position: absolute;
+                width: 8px; height: 8px;
+                background: ${colors[Math.floor(Math.random() * colors.length)]};
+                border-radius: 50%;
+                left: 20%; top: 30%;
+                opacity: 1;
+                transition: all 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+            `;
+            container.appendChild(p);
+            
+            setTimeout(() => {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 100 + Math.random() * 200;
+                p.style.left = (20 + Math.cos(angle) * distance / 10) + '%';
+                p.style.top = (30 + Math.sin(angle) * distance / 10) + '%';
+                p.style.opacity = '0';
+                p.style.transform = 'scale(0)';
+            }, 50);
+        }
+        
+        setTimeout(() => container.remove(), 2000);
+    })();
+    </script>
+    """, height=0)
+
+def show_upload_error(message="Upload failed!"):
+    """Display error animation."""
+    st.sidebar.markdown(f'''
+        <div class="upload-status-box upload-error">
+            <span class="error-icon">❌</span>
+            <span>{message}</span>
+        </div>
+    ''', unsafe_allow_html=True)
+
+def show_upload_loading(message="Processing..."):
+    """Display loading animation."""
+    st.sidebar.markdown(f'''
+        <div class="upload-status-box upload-loading">
+            <span class="spinner"></span>
+            <span>{message}</span>
+        </div>
+    ''', unsafe_allow_html=True)
 
 # Header
 st.markdown("""
@@ -268,7 +384,7 @@ def get_bq_client():
         credentials = service_account.Credentials.from_service_account_info(creds_dict)
         client = bigquery.Client(credentials=credentials, project=creds_dict["project_id"])
         return client
-    except Exception as e:
+    except Exception:
         return None
 
 def get_bq_table():
@@ -392,25 +508,25 @@ FIELD_ALIASES = {
     "gender":       ["gender", "sex", "jantina"],
     "weight_kg":    ["weight", "weight_kg", "wt", "berat", "body_weight"],
     "height_cm":    ["height", "height_cm", "ht", "tinggi", "body_height"],
-    "body_temp_c":  ["body_temp", "temperature", "temp", "temp_c", "suhu", "body_temperature"],
+    "body_temp_c":  ["body_temp", "temperature", "temp", "temp_c", "suhu", "body_temperature", "bodytemp"],
     "ph_0":         ["ph_0", "ph", "ph_hour0", "baseline_ph", "arterial_ph"],
     "pao2_0":       ["pao2_0", "pao2", "pao2_hour0", "baseline_pao2", "po2"],
     "paco2_0":      ["paco2_0", "paco2", "paco2_hour0", "baseline_paco2", "pco2"],
-    "hco3_0":       ["hco3_0", "hco3", "bicarbonate", "hco3_mmol"],
+    "hco3_0":       ["hco3_0", "hco3", "bicarbonate", "hco3_mmol", "hco3a"],
     "sao2_0":       ["sao2_0", "sao2", "o2sat", "o2_saturation", "so2"],
     "be_0":         ["be_0", "be", "base_excess", "base_exc", "beecf"],
-    "fio2_0":       ["fio2_0", "fio2", "fio2_hour0", "fi_o2"],
+    "fio2_0":       ["fio2_0", "fio2", "fio2_hour0", "fi_o2", "s-fio2", "fio2_set"],
     "hr":           ["hr", "heart_rate", "heartrate", "pulse", "nadi"],
     "spo2":         ["spo2", "sp_o2", "o2_sat", "saturation"],
-    "rr":           ["rr", "respiration_rate", "resp_rate", "breathing_rate"],
-    "sbp":          ["sbp", "systolic", "systolic_bp", "bp_systolic"],
-    "dbp":          ["dbp", "diastolic", "diastolic_bp", "bp_diastolic"],
-    "map":          ["map", "mean_arterial_pressure", "mean_bp"],
-    "peep":         ["peep", "peep_cmh2o"],
+    "rr":           ["rr", "respiration_rate", "resp_rate", "breathing_rate", "tot_rr", "rr_total"],
+    "sbp":          ["sbp", "systolic", "systolic_bp", "bp_systolic", "bps"],
+    "dbp":          ["dbp", "diastolic", "diastolic_bp", "bp_diastolic", "bpd"],
+    "map":          ["map", "mean_arterial_pressure", "mean_bp", "bpm"],
+    "peep":         ["peep", "peep_cmh2o", "s-peep"],
 }
 
 def normalize_column(name):
-    return str(name).lower().strip().replace(" ", "_").replace("-", "_").replace("(", "").replace(")", "")
+    return str(name).lower().strip().replace(" ", "_").replace("-", "_").replace("(", "").replace(")", "").replace("'", "")
 
 def auto_map_columns(df_columns):
     normalized = {normalize_column(c): c for c in df_columns}
@@ -474,6 +590,12 @@ if "active_patient" not in st.session_state:
     st.session_state.active_patient = None
 if "search_query" not in st.session_state:
     st.session_state.search_query = ""
+if "upload_status" not in st.session_state:
+    st.session_state.upload_status = None  # 'success' | 'error' | 'loading' | None
+if "upload_message" not in st.session_state:
+    st.session_state.upload_message = ""
+if "last_uploaded_file" not in st.session_state:
+    st.session_state.last_uploaded_file = None
 
 # ------------------------------------------------------------------
 # 6. SIDEBAR - SEARCH
@@ -548,10 +670,22 @@ if st.session_state.active_patient is not None:
 st.sidebar.markdown("---")
 
 # ------------------------------------------------------------------
-# 7. SIDEBAR - UPLOAD
+# 7. SIDEBAR - UPLOAD (with animation)
 # ------------------------------------------------------------------
 st.sidebar.markdown("## 📁 Upload New Record")
-uploaded_file = st.sidebar.file_uploader("Choose CSV/XLSX", type=["csv", "xlsx", "xls"], key="upload_widget")
+uploaded_file = st.sidebar.file_uploader(
+    "Choose CSV/XLSX", 
+    type=["csv", "xlsx", "xls"], 
+    key="upload_widget"
+)
+
+# Show status animation if available
+if st.session_state.upload_status == "success":
+    show_upload_success(st.session_state.upload_message)
+elif st.session_state.upload_status == "error":
+    show_upload_error(st.session_state.upload_message)
+elif st.session_state.upload_status == "loading":
+    show_upload_loading(st.session_state.upload_message)
 
 defaults = {
     "ph_0": 7.38, "pao2_0": 95.0, "paco2_0": 40.0, "hco3_0": 24.0,
@@ -563,16 +697,22 @@ defaults = {
 patient_record = {}
 derived_metrics = {}
 
+# Process uploaded file
 if uploaded_file is not None:
+    # Only show loading animation if NEW file uploaded
+    if st.session_state.last_uploaded_file != uploaded_file.name:
+        st.session_state.upload_status = "loading"
+        st.session_state.upload_message = "Parsing file..."
+        st.session_state.last_uploaded_file = uploaded_file.name
+    
     try:
-        df_up = pd.read_csv(uploaded_file) if uploaded_file.name.lower().endswith(".csv") else pd.read_excel(uploaded_file)
-        st.sidebar.success(f"✅ Loaded ({len(df_up)} rows)")
+        with st.spinner(""):
+            df_up = pd.read_csv(uploaded_file) if uploaded_file.name.lower().endswith(".csv") else pd.read_excel(uploaded_file)
+        
         mapping, matched = auto_map_columns(df_up.columns)
         patient_record = extract_patient_record(df_up, mapping)
         derived_metrics = compute_derived_abg(patient_record)
-        with st.sidebar.expander(f"🔍 Detected ({len(matched)} fields)"):
-            for f in sorted(matched):
-                st.markdown(f"✅ `{f}`")
+        
         for k in defaults:
             if patient_record.get(k) is not None:
                 defaults[k] = patient_record[k]
@@ -582,8 +722,24 @@ if uploaded_file is not None:
             defaults["paco2_0"] = patient_record["paco2_0"]
         if not patient_record.get("fio2_0") and patient_record.get("fio2"):
             defaults["fio2"] = patient_record["fio2"]
+        
+        # SUCCESS animation
+        st.session_state.upload_status = "success"
+        st.session_state.upload_message = f"Loaded {len(df_up)} rows · {len(matched)} fields detected"
+        
+        # Show success animation
+        show_upload_success(st.session_state.upload_message)
+        
+        # Expandable detection list
+        with st.sidebar.expander(f"🔍 Detected Fields ({len(matched)})"):
+            for f in sorted(matched):
+                st.markdown(f"✅ `{f}`")
+        
     except Exception as e:
-        st.sidebar.error(f"Parse error: {e}")
+        # ERROR animation
+        st.session_state.upload_status = "error"
+        st.session_state.upload_message = f"Parse error: {str(e)[:80]}"
+        show_upload_error(st.session_state.upload_message)
 
 elif st.session_state.active_patient is not None:
     rec = st.session_state.active_patient
@@ -607,14 +763,14 @@ if patient_record and (patient_record.get("patient_id") or patient_record.get("a
     """)
 
 # ------------------------------------------------------------------
-# 8. BASELINE ABG + MODEL INPUT
+# 8. BASELINE ABG + MODEL INPUT (with fixed ranges)
 # ------------------------------------------------------------------
 st.sidebar.markdown("## 🩸 Baseline ABG (Hour 0)")
 
-ph_0 = st.sidebar.number_input("Baseline pH", 6.80, 7.80, float(defaults["ph_0"]), 0.01, key="in_ph")
-pao2_0 = st.sidebar.number_input("Baseline PaO2 (mmHg)", 40.0, 300.0, float(defaults["pao2_0"]), 1.0, key="in_pao2")
-paco2_0 = st.sidebar.number_input("Baseline PaCO2 (mmHg)", 20.0, 80.0, float(defaults["paco2_0"]), 1.0, key="in_paco2")
-hco3_0 = st.sidebar.number_input("Baseline HCO3 (mmol/L)", 5.0, 40.0, float(defaults["hco3_0"]), 0.1, key="in_hco3")
+ph_0 = st.sidebar.number_input("Baseline pH", 6.50, 7.80, float(defaults["ph_0"]), 0.01, key="in_ph")
+pao2_0 = st.sidebar.number_input("Baseline PaO2 (mmHg)", 1.0, 400.0, float(defaults["pao2_0"]), 1.0, key="in_pao2")
+paco2_0 = st.sidebar.number_input("Baseline PaCO2 (mmHg)", 5.0, 150.0, float(defaults["paco2_0"]), 1.0, key="in_paco2")
+hco3_0 = st.sidebar.number_input("Baseline HCO3 (mmol/L)", 1.0, 60.0, float(defaults["hco3_0"]), 0.1, key="in_hco3")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("## 🎛️ Model Input")
@@ -647,7 +803,7 @@ st.sidebar.markdown("---")
 st.sidebar.info("🎯 **Goal:** Reduce routine invasive blood sampling from 8×/day down to targeted draws only.")
 
 # ------------------------------------------------------------------
-# 9. SAVE TO CLOUD
+# 9. SAVE TO CLOUD (with animation)
 # ------------------------------------------------------------------
 if CLOUD_ENABLED and (uploaded_file is not None or st.session_state.active_patient is not None):
     st.sidebar.markdown("---")
@@ -656,7 +812,7 @@ if CLOUD_ENABLED and (uploaded_file is not None or st.session_state.active_patie
                                       placeholder="ICU-2024-001", key="save_pid")
     if st.sidebar.button("💾 Save to BigQuery", width='stretch', type="primary"):
         if not save_pid.strip():
-            st.sidebar.error("Patient ID required")
+            show_upload_error("Patient ID required!")
         else:
             fio2_dec = fio2 / 100.0
             hours_local = [0, 3, 6, 9, 12, 15, 18, 21, 24]
@@ -695,11 +851,12 @@ if CLOUD_ENABLED and (uploaded_file is not None or st.session_state.active_patie
             }
             ok, msg = push_to_bigquery(bq_record)
             if ok:
-                st.sidebar.success(f"☁️ Saved: {save_pid}")
+                show_upload_success(f"Saved to BigQuery: {save_pid}")
                 st.session_state.search_query = ""
+                time.sleep(1.5)
                 st.rerun()
             else:
-                st.sidebar.error(f"Failed: {msg}")
+                show_upload_error(f"Save failed: {msg[:60]}")
 
 # ------------------------------------------------------------------
 # 10. PATIENT BANNER
@@ -718,7 +875,7 @@ if patient_record and (patient_record.get("patient_id") or patient_record.get("a
         except Exception:
             pass
     st.markdown(f"""
-        <div class="patient-info-card">
+        <div class="patient-info-card fade-in">
             <div style="color: #6EE7B7; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">
                 👤 Active Patient Record
             </div>
@@ -884,7 +1041,7 @@ if st.session_state.active_patient is not None and CLOUD_ENABLED:
 
 st.markdown("""
     <div class="footer">
-        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 3.3 · Cloud-Enabled<br>
+        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 3.4 · Cloud-Enabled<br>
         © 2024 Faculty of Electrical Engineering, UiTM Pasir Gudang<br>
         For clinical decision support only — always verify with attending physician.
     </div>
