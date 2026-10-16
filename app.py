@@ -1153,6 +1153,8 @@ with col_vis2:
         z=Z, x=x_axis, y=y_axis, colorscale="Viridis",
         colorbar=dict(title=dict(text="PaO2", font=dict(color=FONT, size=9)), thickness=10, len=0.6, tickfont=dict(size=8, color=FONT))
     )])
+    
+    # Tetapan kamera awal untuk 3D surface
     fig_3d.update_layout(
         scene=dict(
             xaxis_title='FiO2', yaxis_title='RR', zaxis_title='PaO2',
@@ -1163,8 +1165,49 @@ with col_vis2:
         ),
         margin=dict(l=10, r=10, b=5, t=5), height=320, paper_bgcolor='rgba(0,0,0,0)', font=dict(family='Inter', color=FONT)
     )
-    st.plotly_chart(fig_3d, width='stretch')
     
+    # Render plot 3D
+    chart_placeholder = st.empty()
+    with chart_placeholder.container():
+        st.plotly_chart(fig_3d, width='stretch', key="anfis_3d_surface")
+
+    # Skrip JavaScript untuk Auto-Rotate Kamera 3D secara Lancar
+    auto_rotate_script = """
+    <script>
+    (function() {
+        const doc = window.parent.document;
+        setTimeout(() => {
+            const plotDiv = doc.querySelector('.js-plotly-plot');
+            if (plotDiv && window.Plotly && !plotDiv.dataset.rotating) {
+                plotDiv.dataset.rotating = "true";
+                let angle = 0;
+                let isInteracting = false;
+
+                plotDiv.on('plotly_relayout', () => {
+                    isInteracting = true;
+                    setTimeout(() => { isInteracting = false; }, 4000);
+                });
+
+                setInterval(() => {
+                    if (!isInteracting && plotDiv && plotDiv._fullLayout) {
+                        angle += 0.5;
+                        const rad = angle * (Math.PI / 180);
+                        const radius = 2.4;
+                        const eyeX = radius * Math.cos(rad);
+                        const eyeY = radius * Math.sin(rad);
+                        
+                        window.Plotly.relayout(plotDiv, {
+                            'scene.camera.eye': { x: eyeX, y: eyeY, z: 1.3 }
+                        });
+                    }
+                }, 75);
+            }
+        }, 1000);
+    })();
+    </script>
+    """
+    components.html(auto_rotate_script, height=0)
+
     # Real-Time Explanation & Normal Values (Panel B)
     est_surface_pao2 = round(40 + (2.1 * fio2) - (0.012 * (fio2**1.8)) - (15 / (1 + np.exp(-(rr - 22) / 3))), 1)
     st.markdown(f"""
