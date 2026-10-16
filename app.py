@@ -283,7 +283,6 @@ st.markdown(f"""
         to {{ transform: rotate(360deg); }}
     }}
     
-    /* Fade in animation for dashboard */
     .fade-in {{
         animation: fadeIn 0.6s ease;
     }}
@@ -306,7 +305,6 @@ def show_upload_success(message="File uploaded successfully!"):
             <span>{message}</span>
         </div>
     ''', unsafe_allow_html=True)
-    # Particle burst effect
     components.html("""
     <script>
     (function() {
@@ -433,30 +431,38 @@ except Exception:
     MODEL_LOADED = False
 
 # ------------------------------------------------------------------
-# 2. BIGQUERY CONNECTION
+# 2. BIGQUERY CONNECTION (WITH AUTO-FALLBACK & DIAGNOSTICS)
 # ------------------------------------------------------------------
 @st.cache_resource(show_spinner=False)
 def get_bq_client():
     try:
         from google.cloud import bigquery
         from google.oauth2 import service_account
+        if "gcp_service_account" not in st.secrets:
+            return None, "Tiada [gcp_service_account] dalam Streamlit Secrets"
         creds_dict = dict(st.secrets["gcp_service_account"])
         if "private_key" in creds_dict:
             creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
         credentials = service_account.Credentials.from_service_account_info(creds_dict)
-        client = bigquery.Client(credentials=credentials, project=creds_dict["project_id"])
-        return client
-    except Exception:
-        return None
+        proj_id = creds_dict.get("project_id", "cdss-icu")
+        client = bigquery.Client(credentials=credentials, project=proj_id)
+        return client, None
+    except Exception as e:
+        return None, str(e)
 
 def get_bq_table():
     try:
-        cfg = st.secrets["bigquery"]
-        return f"{cfg['project_id']}.{cfg['dataset']}.{cfg['table']}"
+        if "bigquery" in st.secrets:
+            cfg = st.secrets["bigquery"]
+            return f"{cfg.get('project_id', 'cdss-icu')}.{cfg.get('dataset', 'cdss_icu')}.{cfg.get('table', 'patient_records')}"
+        elif "gcp_service_account" in st.secrets:
+            proj_id = st.secrets["gcp_service_account"].get("project_id", "cdss-icu")
+            return f"{proj_id}.cdss_icu.patient_records"
+        return "cdss-icu.cdss_icu.patient_records"
     except Exception:
-        return None
+        return "cdss-icu.cdss_icu.patient_records"
 
-bq_client = get_bq_client()
+bq_client, bq_err_msg = get_bq_client()
 BQ_TABLE = get_bq_table()
 CLOUD_ENABLED = (bq_client is not None) and (BQ_TABLE is not None)
 
@@ -491,7 +497,7 @@ def search_patients(query="", limit=50):
                 LIMIT {int(limit)}
             """
             job_config = bigquery.QueryJobConfig(
-                query_parameters=[bigquery.ScalarQueryParameter("q", "STRING", f"%{query.lower()}%")]
+                query_parameters=[bigquery.ScalarQueryParameter("q", "STRING", f"%{query.strip().lower()}%")]
             )
             return bq_client.query(sql, job_config=job_config).to_dataframe()
         else:
@@ -515,11 +521,11 @@ def get_patient_latest(patient_id):
         from google.cloud import bigquery
         sql = f"""
             SELECT * FROM `{BQ_TABLE}`
-            WHERE patient_id = @pid
+            WHERE LOWER(patient_id) = @pid
             ORDER BY upload_timestamp DESC LIMIT 1
         """
         job_config = bigquery.QueryJobConfig(
-            query_parameters=[bigquery.ScalarQueryParameter("pid", "STRING", patient_id)]
+            query_parameters=[bigquery.ScalarQueryParameter("pid", "STRING", patient_id.strip().lower())]
         )
         df = bq_client.query(sql, job_config=job_config).to_dataframe()
         if len(df) == 0:
@@ -537,11 +543,11 @@ def get_patient_history(patient_id):
             SELECT upload_timestamp, ph_0, pao2_0, paco2_0, hco3_0,
                    hr, spo2, rr, fio2_0, source_filename
             FROM `{BQ_TABLE}`
-            WHERE patient_id = @pid
+            WHERE LOWER(patient_id) = @pid
             ORDER BY upload_timestamp DESC
         """
         job_config = bigquery.QueryJobConfig(
-            query_parameters=[bigquery.ScalarQueryParameter("pid", "STRING", patient_id)]
+            query_parameters=[bigquery.ScalarQueryParameter("pid", "STRING", patient_id.strip().lower())]
         )
         return bq_client.query(sql, job_config=job_config).to_dataframe()
     except Exception:
@@ -552,9 +558,9 @@ def delete_patient_records(patient_id):
         return False, "Cloud disabled"
     try:
         from google.cloud import bigquery
-        sql = f"DELETE FROM `{BQ_TABLE}` WHERE patient_id = @pid"
+        sql = f"DELETE FROM `{BQ_TABLE}` WHERE LOWER(patient_id) = @pid"
         job_config = bigquery.QueryJobConfig(
-            query_parameters=[bigquery.ScalarQueryParameter("pid", "STRING", patient_id)]
+            query_parameters=[bigquery.ScalarQueryParameter("pid", "STRING", patient_id.strip().lower())]
         )
         bq_client.query(sql, job_config=job_config).result()
         return True, "Deleted"
@@ -562,7 +568,7 @@ def delete_patient_records(patient_id):
         return False, str(e)
 
 # ------------------------------------------------------------------
-# 4. SMART CSV PARSER (WITH AUTO kPa -> mmHg CONVERSION)
+# 4. SMART CSV PARSER (SUPPORTS MULTI-ROW SEARCH & AUTO kPa->mmHg)
 # ------------------------------------------------------------------
 FIELD_ALIASES = {
     "patient_id":   ["patient_id", "patientid", "id", "pid", "mrn", "medical_record", "no_rm", "ic"],
@@ -601,16 +607,26 @@ def auto_map_columns(df_columns):
                 break
     return mapping, matched
 
-def extract_patient_record(df, mapping):
+def extract_patient_record(df, mapping, target_pid=None):
     record = {}
     if len(df) == 0:
         return record
+    
+    # Cari baris pesakit spesifik jika ada target_pid, jika tidak ambil baris pertama
     row = df.iloc[0]
+    if target_pid and "patient_id" in mapping:
+        pid_col = mapping["patient_id"]
+        matched_rows = df[df[pid_col].astype(str).str.strip().str.lower() == target_pid.strip().lower()]
+        if len(matched_rows) == 0:
+            matched_rows = df[df[pid_col].astype(str).str.lower().str.contains(target_pid.strip().lower(), na=False)]
+        if len(matched_rows) > 0:
+            row = matched_rows.iloc[0]
+
     for field, col in mapping.items():
         try:
             val = row[col]
             if field in ["patient_id", "gender"]:
-                record[field] = str(val) if pd.notna(val) else None
+                record[field] = str(val).strip() if pd.notna(val) else None
             else:
                 record[field] = float(val) if pd.notna(val) else None
         except Exception:
@@ -661,40 +677,51 @@ if "active_patient" not in st.session_state:
 if "search_query" not in st.session_state:
     st.session_state.search_query = ""
 if "upload_status" not in st.session_state:
-    st.session_state.upload_status = None  # 'success' | 'error' | 'loading' | None
+    st.session_state.upload_status = None
 if "upload_message" not in st.session_state:
     st.session_state.upload_message = ""
 if "last_uploaded_file" not in st.session_state:
     st.session_state.last_uploaded_file = None
+if "selected_csv_pid" not in st.session_state:
+    st.session_state.selected_csv_pid = None
 
 # ------------------------------------------------------------------
 # 6. SIDEBAR - SEARCH
 # ------------------------------------------------------------------
+st.sidebar.markdown("## 🔍 Patient Registry")
 if CLOUD_ENABLED:
-    st.sidebar.markdown("## 🔍 Patient Registry")
     st.sidebar.caption("☁️ Connected to BigQuery")
 else:
-    st.sidebar.markdown("## 🔍 Patient Registry")
-    st.sidebar.caption("⚠️ Offline mode")
+    st.sidebar.caption("⚠️ Offline mode (Local CSV Search Active)")
+    if bq_err_msg:
+        with st.sidebar.expander("ℹ️ Kenapa Offline?"):
+            st.caption(bq_err_msg)
 
 search_q = st.sidebar.text_input("Search Patient ID", value=st.session_state.search_query,
-                                  placeholder="ICU-2024-...", key="search_box")
+                                  placeholder="ICU-2024-005", key="search_box")
 
 col_s1, col_s2 = st.sidebar.columns([3, 1])
 with col_s1:
     if st.button("🔎 Search", width='stretch'):
-        st.session_state.search_query = search_q
+        st.session_state.search_query = search_q.strip()
+        st.session_state.selected_csv_pid = search_q.strip()
+        # Jika ada dalam BigQuery, terus tarik rekod terkini
+        if CLOUD_ENABLED and search_q.strip():
+            rec_bq = get_patient_latest(search_q.strip())
+            if rec_bq:
+                st.session_state.active_patient = rec_bq
         st.rerun()
 with col_s2:
     if st.button("📋", width='stretch'):
         st.session_state.search_query = ""
+        st.session_state.selected_csv_pid = None
         st.rerun()
 
 if CLOUD_ENABLED:
     with st.spinner("Querying..."):
         results = search_patients(st.session_state.search_query, limit=50)
     if len(results) > 0:
-        st.sidebar.caption(f"Found **{len(results)}** patient(s)")
+        st.sidebar.caption(f"Found **{len(results)}** patient(s) in Cloud")
         options = []
         for _, row in results.iterrows():
             pid = row["patient_id"]
@@ -703,7 +730,7 @@ if CLOUD_ENABLED:
             g = row.get('gender') or "?"
             last = str(row['last_seen'])[:10]
             options.append(f"👤 {pid} · {age}{g} · {n} rec · {last}")
-        picked = st.sidebar.radio("Select Patient:", options, key="patient_picker")
+        picked = st.sidebar.radio("Select Cloud Patient:", options, key="patient_picker")
         if picked:
             selected_pid = picked.split(" · ")[0].replace("👤 ", "").strip()
             c1, c2 = st.sidebar.columns(2)
@@ -712,6 +739,7 @@ if CLOUD_ENABLED:
                     rec = get_patient_latest(selected_pid)
                     if rec:
                         st.session_state.active_patient = rec
+                        st.session_state.selected_csv_pid = selected_pid
                         st.rerun()
                     else:
                         st.sidebar.error("Not found")
@@ -725,22 +753,22 @@ if CLOUD_ENABLED:
                         st.sidebar.error(msg)
     else:
         if st.session_state.search_query:
-            st.sidebar.warning("No matching patient")
+            st.sidebar.caption("Tiada dalam BigQuery (Menyemak CSV jika dimuat naik)")
         else:
-            st.sidebar.info("No patients yet")
+            st.sidebar.info("No cloud patients yet")
 
 if st.session_state.active_patient is not None:
     st.sidebar.markdown("---")
     pid_active = st.session_state.active_patient.get("patient_id", "?")
-    st.sidebar.success(f"✅ Active: `{pid_active}`")
-    if st.sidebar.button("✖ Clear", width='stretch'):
+    st.sidebar.success(f"✅ Active Cloud Record: `{pid_active}`")
+    if st.sidebar.button("✖ Clear Cloud Selection", width='stretch'):
         st.session_state.active_patient = None
         st.rerun()
 
 st.sidebar.markdown("---")
 
 # ------------------------------------------------------------------
-# 7. SIDEBAR - UPLOAD (with animation)
+# 7. SIDEBAR - UPLOAD (with animation & multi-patient selector)
 # ------------------------------------------------------------------
 st.sidebar.markdown("## 📁 Upload New Record")
 uploaded_file = st.sidebar.file_uploader(
@@ -748,14 +776,6 @@ uploaded_file = st.sidebar.file_uploader(
     type=["csv", "xlsx", "xls"], 
     key="upload_widget"
 )
-
-# Show status animation if available
-if st.session_state.upload_status == "success":
-    show_upload_success(st.session_state.upload_message)
-elif st.session_state.upload_status == "error":
-    show_upload_error(st.session_state.upload_message)
-elif st.session_state.upload_status == "loading":
-    show_upload_loading(st.session_state.upload_message)
 
 defaults = {
     "ph_0": 7.38, "pao2_0": 95.0, "paco2_0": 40.0, "hco3_0": 24.0,
@@ -769,17 +789,37 @@ derived_metrics = {}
 
 # Process uploaded file
 if uploaded_file is not None:
-    if st.session_state.last_uploaded_file != uploaded_file.name:
-        st.session_state.upload_status = "loading"
-        st.session_state.upload_message = "Parsing file..."
-        st.session_state.last_uploaded_file = uploaded_file.name
-    
     try:
         with st.spinner(""):
             df_up = pd.read_csv(uploaded_file) if uploaded_file.name.lower().endswith(".csv") else pd.read_excel(uploaded_file)
         
         mapping, matched = auto_map_columns(df_up.columns)
-        patient_record = extract_patient_record(df_up, mapping)
+        
+        # Jika fail CSV ada ramai pesakit (cth: 1000 rows), benarkan pengguna pilih atau guna kotak Search di atas
+        target_pid = st.session_state.selected_csv_pid
+        if "patient_id" in mapping and len(df_up) > 1:
+            pid_col = mapping["patient_id"]
+            all_csv_pids = df_up[pid_col].dropna().astype(str).unique().tolist()
+            if st.session_state.search_query:
+                filtered_pids = [p for p in all_csv_pids if st.session_state.search_query.lower() in p.lower()]
+                if len(filtered_pids) > 0:
+                    all_csv_pids = filtered_pids
+                else:
+                    st.sidebar.warning(f"Tiada `{st.session_state.search_query}` dalam CSV.")
+            
+            default_idx = 0
+            if target_pid in all_csv_pids:
+                default_idx = all_csv_pids.index(target_pid)
+            
+            chosen_csv_pid = st.sidebar.selectbox(
+                f"👥 Pilih Pesakit dari CSV ({len(all_csv_pids)} ditemui):",
+                all_csv_pids,
+                index=default_idx,
+                key="csv_pid_selector"
+            )
+            target_pid = chosen_csv_pid
+
+        patient_record = extract_patient_record(df_up, mapping, target_pid=target_pid)
         derived_metrics = compute_derived_abg(patient_record)
         
         for k in defaults:
@@ -794,11 +834,10 @@ if uploaded_file is not None:
         elif patient_record.get("fio2"):
             defaults["fio2"] = int(float(patient_record["fio2"]) * 100) if float(patient_record["fio2"]) <= 1.0 else int(float(patient_record["fio2"]))
         
-        # SUCCESS animation
+        # SUCCESS animation (Hanya panggil SEKALI supaya tidak duplicate)
         st.session_state.upload_status = "success"
         unit_note = " (kPa➜mmHg)" if patient_record.get("_kpa_converted") else ""
         st.session_state.upload_message = f"Loaded {len(df_up)} rows · {len(matched)} fields{unit_note}"
-        
         show_upload_success(st.session_state.upload_message)
         
         with st.sidebar.expander(f"🔍 Detected Fields ({len(matched)})"):
@@ -812,6 +851,12 @@ if uploaded_file is not None:
 
 elif st.session_state.active_patient is not None:
     rec = st.session_state.active_patient
+    # Auto-convert jika rekod lama dalam BigQuery masih dalam kPa
+    if rec.get("pao2_0") is not None and float(rec["pao2_0"]) < 30.0:
+        rec["pao2_0"] = round(float(rec["pao2_0"]) * 7.50062, 1)
+    if rec.get("paco2_0") is not None and float(rec["paco2_0"]) < 15.0:
+        rec["paco2_0"] = round(float(rec["paco2_0"]) * 7.50062, 1)
+
     for k in defaults:
         if rec.get(k) is not None:
             defaults[k] = rec[k]
@@ -834,26 +879,27 @@ if patient_record and (patient_record.get("patient_id") or patient_record.get("a
     """)
 
 # ------------------------------------------------------------------
-# 8. BASELINE ABG + MODEL INPUT (with fixed ranges)
+# 8. BASELINE ABG + MODEL INPUT (Dynamic keys per patient)
 # ------------------------------------------------------------------
 st.sidebar.markdown("## 🩸 Baseline ABG (Hour 0)")
+active_pid_key = str(patient_record.get("patient_id") or "default")
 
-ph_0 = st.sidebar.number_input("Baseline pH", 6.50, 7.80, float(defaults["ph_0"]), 0.01, key="in_ph")
-pao2_0 = st.sidebar.number_input("Baseline PaO2 (mmHg)", 1.0, 400.0, float(defaults["pao2_0"]), 1.0, key="in_pao2")
-paco2_0 = st.sidebar.number_input("Baseline PaCO2 (mmHg)", 1.0, 150.0, float(defaults["paco2_0"]), 1.0, key="in_paco2")
-hco3_0 = st.sidebar.number_input("Baseline HCO3 (mmol/L)", 1.0, 60.0, float(defaults["hco3_0"]), 0.1, key="in_hco3")
+ph_0 = st.sidebar.number_input("Baseline pH", 6.50, 7.80, float(defaults["ph_0"]), 0.01, key=f"in_ph_{active_pid_key}")
+pao2_0 = st.sidebar.number_input("Baseline PaO2 (mmHg)", 1.0, 400.0, float(defaults["pao2_0"]), 1.0, key=f"in_pao2_{active_pid_key}")
+paco2_0 = st.sidebar.number_input("Baseline PaCO2 (mmHg)", 1.0, 150.0, float(defaults["paco2_0"]), 1.0, key=f"in_paco2_{active_pid_key}")
+hco3_0 = st.sidebar.number_input("Baseline HCO3 (mmol/L)", 1.0, 60.0, float(defaults["hco3_0"]), 0.1, key=f"in_hco3_{active_pid_key}")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("## 🎛️ Model Input")
 
 def synced_input(label, min_val, max_val, default, step, key_prefix):
-    slider_key = f"{key_prefix}_slider"
-    num_key = f"{key_prefix}_num"
+    slider_key = f"{key_prefix}_slider_{active_pid_key}"
+    num_key = f"{key_prefix}_num_{active_pid_key}"
     default_clamped = max(min_val, min(max_val, int(round(float(default)))))
-    if slider_key not in st.session_state or st.session_state.get(f"{key_prefix}_last_def") != default_clamped:
+    if slider_key not in st.session_state or st.session_state.get(f"{key_prefix}_last_def_{active_pid_key}") != default_clamped:
         st.session_state[slider_key] = default_clamped
         st.session_state[num_key] = default_clamped
-        st.session_state[f"{key_prefix}_last_def"] = default_clamped
+        st.session_state[f"{key_prefix}_last_def_{active_pid_key}"] = default_clamped
     def update_slider():
         st.session_state[slider_key] = st.session_state[num_key]
     def update_num():
@@ -886,7 +932,6 @@ def run_bilstm_forecast(ph_val, pao2_val, paco2_val, spo2_val, rr_val, fio2_val,
         try:
             a_val = float(age_val) if age_val is not None else 59.0
             t_val = float(temp_val) if temp_val is not None else 37.5
-            # 7 Features matching trained model: [ph_0, pao2_0_mmhg, paco2_0_mmhg, spo2, rr, age, body_temp_c]
             feat_vec = np.array([ph_val, pao2_val, paco2_val, spo2_val, rr_val, a_val, t_val], dtype=np.float32)
             seq_in = np.zeros((1, n_steps, 7), dtype=np.float32)
             for i in range(n_steps):
@@ -928,7 +973,6 @@ critical_sampling_hours = [hours[i] for i in range(len(hours))
                            if pao2_trajectory[i] < 70 or ph_trajectory[i] < 7.30 or ph_trajectory[i] > 7.50
                            or paco2_trajectory[i] < 30 or paco2_trajectory[i] > 50]
 
-# Update live derived metrics based on current inputs
 live_record_for_derived = dict(patient_record)
 live_record_for_derived.update({"ph_0": ph_0, "pao2_0": pao2_0, "paco2_0": paco2_0, "hco3_0": hco3_0, "fio2_0": fio2, "hr": hr})
 derived_metrics = compute_derived_abg(live_record_for_derived)
@@ -940,7 +984,7 @@ if CLOUD_ENABLED and (uploaded_file is not None or st.session_state.active_patie
     st.sidebar.markdown("---")
     st.sidebar.markdown("## ☁️ Cloud Sync")
     save_pid = st.sidebar.text_input("Patient ID", value=str(patient_record.get("patient_id") or ""),
-                                      placeholder="ICU-2024-001", key="save_pid")
+                                      placeholder="ICU-2024-001", key=f"save_pid_{active_pid_key}")
     if st.sidebar.button("💾 Save to BigQuery", width='stretch', type="primary"):
         if not save_pid.strip():
             show_upload_error("Patient ID required!")
