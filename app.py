@@ -130,7 +130,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. SENIBINA MODEL BiLSTM & FUNGSI CACHING
+# 2. SENIBINA MODEL BiLSTM (7 INPUT FEATURES) & FUNGSI CACHING
 # ==============================================================================
 class Attention(nn.Module):
     def __init__(self, hidden_dim):
@@ -146,7 +146,7 @@ class Attention(nn.Module):
         return context, weights
 
 class BiLSTMModel(nn.Module):
-    def __init__(self, input_dim=5, hidden_dim=64, num_layers=2, output_dim=3):
+    def __init__(self, input_dim=7, hidden_dim=64, num_layers=2, output_dim=3):
         super(BiLSTMModel, self).__init__()
         self.bilstm = nn.LSTM(input_dim, hidden_dim, num_layers=num_layers,
                               bidirectional=True, batch_first=True, dropout=0.2)
@@ -173,7 +173,7 @@ def load_trained_pipeline():
         scaler_x_path = "scaler_features.pkl"
         scaler_y_path = "scaler_target.pkl"
 
-    model = BiLSTMModel(input_dim=5, hidden_dim=64, num_layers=2, output_dim=3)
+    model = BiLSTMModel(input_dim=7, hidden_dim=64, num_layers=2, output_dim=3)
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
     model.eval()
 
@@ -195,7 +195,6 @@ except Exception as e:
 def get_bigquery_client():
     if "gcp_service_account" in st.secrets:
         creds_info = dict(st.secrets["gcp_service_account"])
-        # Format kunci peribadi jika ada escaping \n
         if "\\n" in creds_info.get("private_key", ""):
             creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
         credentials = service_account.Credentials.from_service_account_info(creds_info)
@@ -214,7 +213,6 @@ FULL_TABLE_REF = f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}"
 # ==============================================================================
 st.sidebar.markdown("## 🔍 Patient Registry")
 
-# Nilai lalai parameter
 active_patient_id = "ICU-2024-001"
 patient_age = 59.0
 patient_gender = "M"
@@ -239,7 +237,6 @@ def_dbp = 80.0
 def_map = 93.3
 def_peep = 5.0
 
-# Butang carian rekod BigQuery
 if bq_client:
     search_id = st.sidebar.text_input("Search Patient ID", value="")
     if st.sidebar.button("Cari Pesakit di BigQuery"):
@@ -359,18 +356,21 @@ rr = synced_input("Respiration Rate (RR - bpm)", 8, 40, int(def_rr), 1, "rr")
 fio2 = synced_input("FiO2 Setting (%)", 21, 100, int(def_fio2_0), 1, "fio2")
 
 # ==============================================================================
-# 5. ENJIN RAMALAN: INFERENS BiLSTM-ATTENTION
+# 5. ENJIN RAMALAN: INFERENS BiLSTM-ATTENTION (7 FEATURES)
 # ==============================================================================
 hours = [0, 3, 6, 9, 12, 15, 18, 21, 24]
 N_STEPS = len(hours)
 
 if model_loaded:
-    feat_vector = np.array([ph_0, pao2_0, paco2_0, spo2, rr], dtype=np.float32)
-    seq_input = np.zeros((1, N_STEPS, 5), dtype=np.float32)
+    # 7 Ciri yang sepadan dengan model latihan: [ph_0, pao2_0_mmhg, paco2_0_mmhg, spo2, rr, age, body_temp_c]
+    feat_vector = np.array([ph_0, pao2_0, paco2_0, spo2, rr, patient_age, patient_temp], dtype=np.float32)
+    
+    # Bina siri masa interpolasi (Shape: 1, 9, 7)
+    seq_input = np.zeros((1, N_STEPS, 7), dtype=np.float32)
     for i in range(N_STEPS):
         seq_input[0, i, :] = feat_vector * (1.0 + (i / 8.0 * 0.05 * np.sin(i)))
 
-    seq_scaled = scaler_features.transform(seq_input.reshape(-1, 5)).reshape(1, N_STEPS, 5)
+    seq_scaled = scaler_features.transform(seq_input.reshape(-1, 7)).reshape(1, N_STEPS, 7)
 
     with torch.no_grad():
         tensor_in = torch.tensor(seq_scaled, dtype=torch.float32)
@@ -500,7 +500,6 @@ with col3:
     ''', unsafe_allow_html=True)
 
 st.write("")
-# Kad Parameter Derivasi Klinikal
 d_col1, d_col2, d_col3, d_col4, d_col5 = st.columns(5)
 with d_col1:
     st.markdown(f'<div class="derived-card"><div class="derived-title">[H+] Concentration</div><div class="derived-val">{h_plus} nmol/L</div></div>', unsafe_allow_html=True)
