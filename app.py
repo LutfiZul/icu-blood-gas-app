@@ -298,7 +298,6 @@ st.markdown(f"""
 # UPLOAD ANIMATION FUNCTIONS
 # ------------------------------------------------------------------
 def show_upload_success(message="File uploaded successfully!"):
-    """Display success animation."""
     st.sidebar.markdown(f'''
         <div class="upload-status-box upload-success">
             <span class="checkmark-icon"></span>
@@ -347,7 +346,6 @@ def show_upload_success(message="File uploaded successfully!"):
     """, height=0)
 
 def show_upload_error(message="Upload failed!"):
-    """Display error animation."""
     st.sidebar.markdown(f'''
         <div class="upload-status-box upload-error">
             <span class="error-icon">❌</span>
@@ -356,7 +354,6 @@ def show_upload_error(message="Upload failed!"):
     ''', unsafe_allow_html=True)
 
 def show_upload_loading(message="Processing..."):
-    """Display loading animation."""
     st.sidebar.markdown(f'''
         <div class="upload-status-box upload-loading">
             <span class="spinner"></span>
@@ -431,7 +428,7 @@ except Exception:
     MODEL_LOADED = False
 
 # ------------------------------------------------------------------
-# 2. BIGQUERY CONNECTION (WITH AUTO-FALLBACK & DIAGNOSTICS)
+# 2. BIGQUERY CONNECTION
 # ------------------------------------------------------------------
 @st.cache_resource(show_spinner=False)
 def get_bq_client():
@@ -568,7 +565,7 @@ def delete_patient_records(patient_id):
         return False, str(e)
 
 # ------------------------------------------------------------------
-# 4. SMART CSV PARSER (SUPPORTS MULTI-ROW SEARCH & AUTO kPa->mmHg)
+# 4. SMART CSV PARSER
 # ------------------------------------------------------------------
 FIELD_ALIASES = {
     "patient_id":   ["patient_id", "patientid", "id", "pid", "mrn", "medical_record", "no_rm", "ic"],
@@ -612,7 +609,6 @@ def extract_patient_record(df, mapping, target_pid=None):
     if len(df) == 0:
         return record
     
-    # Cari baris pesakit spesifik jika ada target_pid, jika tidak ambil baris pertama
     row = df.iloc[0]
     if target_pid and "patient_id" in mapping:
         pid_col = mapping["patient_id"]
@@ -632,7 +628,6 @@ def extract_patient_record(df, mapping, target_pid=None):
         except Exception:
             record[field] = None
 
-    # Auto-detect & convert kPa -> mmHg (x 7.50062)
     if record.get("pao2_0") is not None and record["pao2_0"] < 30.0:
         record["_kpa_converted"] = True
         record["pao2_0"] = round(record["pao2_0"] * 7.50062, 1)
@@ -705,7 +700,6 @@ with col_s1:
     if st.button("🔎 Search", width='stretch'):
         st.session_state.search_query = search_q.strip()
         st.session_state.selected_csv_pid = search_q.strip()
-        # Jika ada dalam BigQuery, terus tarik rekod terkini
         if CLOUD_ENABLED and search_q.strip():
             rec_bq = get_patient_latest(search_q.strip())
             if rec_bq:
@@ -768,7 +762,7 @@ if st.session_state.active_patient is not None:
 st.sidebar.markdown("---")
 
 # ------------------------------------------------------------------
-# 7. SIDEBAR - UPLOAD (with animation & multi-patient selector)
+# 7. SIDEBAR - UPLOAD
 # ------------------------------------------------------------------
 st.sidebar.markdown("## 📁 Upload New Record")
 uploaded_file = st.sidebar.file_uploader(
@@ -787,7 +781,6 @@ defaults = {
 patient_record = {}
 derived_metrics = {}
 
-# Process uploaded file
 if uploaded_file is not None:
     try:
         with st.spinner(""):
@@ -795,7 +788,6 @@ if uploaded_file is not None:
         
         mapping, matched = auto_map_columns(df_up.columns)
         
-        # Jika fail CSV ada ramai pesakit (cth: 1000 rows), benarkan pengguna pilih atau guna kotak Search di atas
         target_pid = st.session_state.selected_csv_pid
         if "patient_id" in mapping and len(df_up) > 1:
             pid_col = mapping["patient_id"]
@@ -804,8 +796,6 @@ if uploaded_file is not None:
                 filtered_pids = [p for p in all_csv_pids if st.session_state.search_query.lower() in p.lower()]
                 if len(filtered_pids) > 0:
                     all_csv_pids = filtered_pids
-                else:
-                    st.sidebar.warning(f"Tiada `{st.session_state.search_query}` dalam CSV.")
             
             default_idx = 0
             if target_pid in all_csv_pids:
@@ -834,7 +824,6 @@ if uploaded_file is not None:
         elif patient_record.get("fio2"):
             defaults["fio2"] = int(float(patient_record["fio2"]) * 100) if float(patient_record["fio2"]) <= 1.0 else int(float(patient_record["fio2"]))
         
-        # SUCCESS animation (Hanya panggil SEKALI supaya tidak duplicate)
         st.session_state.upload_status = "success"
         unit_note = " (kPa➜mmHg)" if patient_record.get("_kpa_converted") else ""
         st.session_state.upload_message = f"Loaded {len(df_up)} rows · {len(matched)} fields{unit_note}"
@@ -851,7 +840,6 @@ if uploaded_file is not None:
 
 elif st.session_state.active_patient is not None:
     rec = st.session_state.active_patient
-    # Auto-convert jika rekod lama dalam BigQuery masih dalam kPa
     if rec.get("pao2_0") is not None and float(rec["pao2_0"]) < 30.0:
         rec["pao2_0"] = round(float(rec["pao2_0"]) * 7.50062, 1)
     if rec.get("paco2_0") is not None and float(rec["paco2_0"]) < 15.0:
@@ -879,7 +867,7 @@ if patient_record and (patient_record.get("patient_id") or patient_record.get("a
     """)
 
 # ------------------------------------------------------------------
-# 8. BASELINE ABG + MODEL INPUT (Dynamic keys per patient)
+# 8. BASELINE ABG + MODEL INPUT
 # ------------------------------------------------------------------
 st.sidebar.markdown("## 🩸 Baseline ABG (Hour 0)")
 active_pid_key = str(patient_record.get("patient_id") or "default")
@@ -921,7 +909,7 @@ st.sidebar.markdown("---")
 st.sidebar.info("🎯 **Goal:** Reduce routine invasive blood sampling from 8×/day down to targeted draws only.")
 
 # ------------------------------------------------------------------
-# 9. FORECASTING ENGINE (TRAINED BiLSTM MODEL + FALLBACK)
+# 9. FORECASTING ENGINE
 # ------------------------------------------------------------------
 def run_bilstm_forecast(ph_val, pao2_val, paco2_val, spo2_val, rr_val, fio2_val, age_val, temp_val):
     hours_seq = [0, 3, 6, 9, 12, 15, 18, 21, 24]
@@ -978,7 +966,7 @@ live_record_for_derived.update({"ph_0": ph_0, "pao2_0": pao2_0, "paco2_0": paco2
 derived_metrics = compute_derived_abg(live_record_for_derived)
 
 # ------------------------------------------------------------------
-# 10. SAVE TO CLOUD (with animation)
+# 10. SAVE TO CLOUD
 # ------------------------------------------------------------------
 if CLOUD_ENABLED and (uploaded_file is not None or st.session_state.active_patient is not None):
     st.sidebar.markdown("---")
@@ -1135,17 +1123,56 @@ with col_vis1:
 
 with col_vis2:
     st.markdown("**PANEL B: ANFIS 3D Fuzzy Surface**")
-    x_axis = np.linspace(21, 100, 35); y_axis = np.linspace(8, 40, 35)
+    
+    # Label X, Y, Z di atas plot
+    st.markdown("""
+        <div style="display: flex; justify-content: space-between; gap: 6px; margin-bottom: 6px; font-size: 11px;">
+            <span style="background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(96, 165, 250, 0.4); padding: 3px 8px; border-radius: 6px; color: #93C5FD;">
+                <strong>X-Axis:</strong> FiO2 (%)
+            </span>
+            <span style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(52, 211, 153, 0.4); padding: 3px 8px; border-radius: 6px; color: #6EE7B7;">
+                <strong>Y-Axis:</strong> RR (bpm)
+            </span>
+            <span style="background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(251, 191, 36, 0.4); padding: 3px 8px; border-radius: 6px; color: #FDE68A;">
+                <strong>Z-Axis:</strong> PaO2 (mmHg)
+            </span>
+        </div>
+    """, unsafe_allow_html=True)
+
+    x_axis = np.linspace(21, 100, 35)
+    y_axis = np.linspace(8, 40, 35)
     X, Y = np.meshgrid(x_axis, y_axis)
     Z = 40 + (2.1 * X) - (0.012 * (X**1.8)) - (15 / (1 + np.exp(-(Y - 22) / 3))) + (25 * np.exp(-((X-60)**2 / 400 + (Y-20)**2 / 100)))
-    fig_3d = go.Figure(data=[go.Surface(z=Z, x=x_axis, y=y_axis, colorscale="Viridis",
-        colorbar=dict(title=dict(text="PaO2", font=dict(color=FONT, size=11)), thickness=12, len=0.7, tickfont=dict(size=10, color=FONT)))])
-    fig_3d.update_layout(scene=dict(xaxis_title='FiO2 (%)', yaxis_title='RR (bpm)', zaxis_title='PaO2 (mmHg)',
-        camera=dict(eye=dict(x=1.5, y=1.5, z=1.2)),
-        xaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID, tickfont=dict(size=9, color=FONT), title_font=dict(size=10, color=FONT)),
-        yaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID, tickfont=dict(size=9, color=FONT), title_font=dict(size=10, color=FONT)),
-        zaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID, tickfont=dict(size=9, color=FONT), title_font=dict(size=10, color=FONT))),
-        margin=dict(l=5, r=5, b=5, t=5), height=380, paper_bgcolor='rgba(0,0,0,0)', font=dict(family='Inter', color=FONT))
+    
+    fig_3d = go.Figure(data=[go.Surface(
+        z=Z, x=x_axis, y=y_axis, 
+        colorscale="Viridis",
+        name="ANFIS Surface",
+        hovertemplate="<b>X (FiO2):</b> %{x:.1f}%<br><b>Y (RR):</b> %{y:.1f} bpm<br><b>Z (PaO2):</b> %{z:.1f} mmHg<extra></extra>",
+        colorbar=dict(
+            title=dict(text="<b>Z: PaO2</b><br>(mmHg)", font=dict(color=FONT, size=10)), 
+            thickness=12, 
+            len=0.75, 
+            x=0.92,
+            tickfont=dict(size=9, color=FONT)
+        )
+    )])
+    
+    fig_3d.update_layout(
+        scene=dict(
+            xaxis_title='X: FiO2 (%)',
+            yaxis_title='Y: RR (bpm)',
+            zaxis_title='Z: PaO2 (mmHg)',
+            camera=dict(eye=dict(x=1.75, y=1.75, z=1.3), center=dict(x=0, y=0, z=-0.1)),
+            xaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID, tickfont=dict(size=9, color=FONT), title=dict(font=dict(size=11, color='#93C5FD'))),
+            yaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID, tickfont=dict(size=9, color=FONT), title=dict(font=dict(size=11, color='#6EE7B7'))),
+            zaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID, tickfont=dict(size=9, color=FONT), title=dict(font=dict(size=11, color='#FDE68A')))
+        ),
+        margin=dict(l=25, r=15, b=10, t=5), 
+        height=350, 
+        paper_bgcolor='rgba(0,0,0,0)', 
+        font=dict(family='Inter', color=FONT)
+    )
     st.plotly_chart(fig_3d, width='stretch')
 
 with col_vis3:
