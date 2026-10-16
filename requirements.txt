@@ -6,3 +6,6 @@ google-cloud-bigquery
 google-auth
 db-dtypes
 openpyxl
+torch
+joblib
+scikit-learn
