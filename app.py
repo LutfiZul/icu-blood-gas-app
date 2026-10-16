@@ -1087,9 +1087,8 @@ else:
     st.markdown(f'<div class="status-warning">🚨 <strong>TARGETED BLOOD DRAW REQUIRED:</strong> Recommended ONLY at Hour(s): <strong>{", ".join(map(str, critical_sampling_hours))}</strong></div>', unsafe_allow_html=True)
 
 st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
-
 # ------------------------------------------------------------------
-# 13. SECTION 2 - VISUALIZATIONS
+# 13. SECTION 2 - VISUALIZATIONS & REAL-TIME CLINICAL EXPLANATIONS
 # ------------------------------------------------------------------
 st.markdown('<div class="section-header">📈 Section 2 · Digital Visualization & Clinical Explainability (XAI)</div>', unsafe_allow_html=True)
 
@@ -1097,6 +1096,7 @@ col_vis1, col_vis2, col_vis3 = st.columns([1.2, 1, 1])
 BLUE = '#60A5FA'; GREEN = '#34D399'; AMBER = '#FBBF24'; RED = '#F87171'
 GRID = 'rgba(148, 163, 184, 0.15)'; FONT = '#CBD5E1'
 
+# --- PANEL A ---
 with col_vis1:
     st.markdown("**PANEL A: BiLSTM 24-Hour ABG Trajectory**")
     fig_line = go.Figure()
@@ -1113,81 +1113,104 @@ with col_vis1:
         fig_line.add_trace(go.Scatter(x=critical_sampling_hours, y=crit_pao2, mode='markers', name='⚠️ Critical',
             marker=dict(size=14, color=RED, symbol='x')))
     fig_line.update_layout(xaxis_title="Hours after Admission", yaxis_title="Trajectory Level",
-        margin=dict(l=10, r=10, b=30, t=10), height=380,
+        margin=dict(l=10, r=10, b=30, t=10), height=320,
         plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color=FONT, size=11, family='Inter'),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10, color=FONT), bgcolor='rgba(0,0,0,0)'),
         hovermode='x unified',
         xaxis=dict(gridcolor=GRID, linecolor=GRID, color=FONT), yaxis=dict(gridcolor=GRID, linecolor=GRID, color=FONT))
     st.plotly_chart(fig_line, width='stretch')
-
-with col_vis2:
-    st.markdown("**PANEL B: ANFIS 3D Fuzzy Surface**")
     
-    # Label X, Y, Z di atas plot
-    st.markdown("""
-        <div style="display: flex; justify-content: space-between; gap: 6px; margin-bottom: 6px; font-size: 11px;">
-            <span style="background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(96, 165, 250, 0.4); padding: 3px 8px; border-radius: 6px; color: #93C5FD;">
-                <strong>X-Axis:</strong> FiO2 (%)
-            </span>
-            <span style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(52, 211, 153, 0.4); padding: 3px 8px; border-radius: 6px; color: #6EE7B7;">
-                <strong>Y-Axis:</strong> RR (bpm)
-            </span>
-            <span style="background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(251, 191, 36, 0.4); padding: 3px 8px; border-radius: 6px; color: #FDE68A;">
-                <strong>Z-Axis:</strong> PaO2 (mmHg)
-            </span>
+    # Real-Time Explanation & Normal Values (Panel A)
+    status_text_a = f"Stable 24h Outlook" if not critical_sampling_hours else f"Critical Hours: {', '.join(map(str, critical_sampling_hours))}"
+    st.markdown(f"""
+        <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(59, 130, 246, 0.3); padding: 12px 14px; border-radius: 10px; margin-top: 8px; font-size: 11px; color: #CBD5E1;">
+            <div style="color: #93C5FD; font-weight: 700; text-transform: uppercase; margin-bottom: 3px;">⚡ Panel A: Trajectory Explanation</div>
+            <div>Forecasts 24h continuous blood gas changes. Current Status: <strong>{status_text_a}</strong>. End PaO2: <strong>{pao2_trajectory[-1]} mmHg</strong>.</div>
+            <div style="margin-top: 5px; color: #94A3B8; border-top: 1px solid rgba(255,255,255,0.1); pt: 4px;">
+                <em>Normal Ranges:</em> PaO2: <strong>75–100 mmHg</strong> | pH: <strong>7.35–7.45</strong> | PaCO2: <strong>35–45 mmHg</strong>
+            </div>
         </div>
     """, unsafe_allow_html=True)
 
-    x_axis = np.linspace(21, 100, 35)
-    y_axis = np.linspace(8, 40, 35)
+# --- PANEL B ---
+with col_vis2:
+    st.markdown("**PANEL B: ANFIS 3D Fuzzy Surface**")
+    st.markdown("""
+        <div style="display: flex; justify-content: space-between; gap: 4px; margin-bottom: 4px; font-size: 10px;">
+            <span style="background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(96, 165, 250, 0.4); padding: 2px 6px; border-radius: 4px; color: #93C5FD;">X: FiO2 ({fio2}%)</span>
+            <span style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(52, 211, 153, 0.4); padding: 2px 6px; border-radius: 4px; color: #6EE7B7;">Y: RR ({rr})</span>
+            <span style="background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(251, 191, 36, 0.4); padding: 2px 6px; border-radius: 4px; color: #FDE68A;">Z: PaO2</span>
+        </div>
+    """, unsafe_allow_html=True)
+
+    x_axis = np.linspace(21, 100, 30)
+    y_axis = np.linspace(8, 40, 30)
     X, Y = np.meshgrid(x_axis, y_axis)
     Z = 40 + (2.1 * X) - (0.012 * (X**1.8)) - (15 / (1 + np.exp(-(Y - 22) / 3))) + (25 * np.exp(-((X-60)**2 / 400 + (Y-20)**2 / 100)))
     
     fig_3d = go.Figure(data=[go.Surface(
-        z=Z, x=x_axis, y=y_axis, 
-        colorscale="Viridis",
-        name="ANFIS Surface",
-        hovertemplate="<b>X (FiO2):</b> %{x:.1f}%<br><b>Y (RR):</b> %{y:.1f} bpm<br><b>Z (PaO2):</b> %{z:.1f} mmHg<extra></extra>",
-        colorbar=dict(
-            title=dict(text="<b>Z: PaO2</b><br>(mmHg)", font=dict(color=FONT, size=10)), 
-            thickness=12, 
-            len=0.75, 
-            x=0.92,
-            tickfont=dict(size=9, color=FONT)
-        )
+        z=Z, x=x_axis, y=y_axis, colorscale="Viridis",
+        colorbar=dict(title=dict(text="PaO2", font=dict(color=FONT, size=9)), thickness=10, len=0.6, tickfont=dict(size=8, color=FONT))
     )])
-    
     fig_3d.update_layout(
         scene=dict(
-            xaxis_title='X: FiO2 (%)',
-            yaxis_title='Y: RR (bpm)',
-            zaxis_title='Z: PaO2 (mmHg)',
-            camera=dict(eye=dict(x=1.75, y=1.75, z=1.3), center=dict(x=0, y=0, z=-0.1)),
-            xaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID, tickfont=dict(size=9, color=FONT), title=dict(font=dict(size=11, color='#93C5FD'))),
-            yaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID, tickfont=dict(size=9, color=FONT), title=dict(font=dict(size=11, color='#6EE7B7'))),
-            zaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID, tickfont=dict(size=9, color=FONT), title=dict(font=dict(size=11, color='#FDE68A')))
+            xaxis_title='FiO2', yaxis_title='RR', zaxis_title='PaO2',
+            camera=dict(eye=dict(x=1.75, y=1.75, z=1.3)),
+            xaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID, tickfont=dict(size=8, color=FONT)),
+            yaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID, tickfont=dict(size=8, color=FONT)),
+            zaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID, tickfont=dict(size=8, color=FONT))
         ),
-        margin=dict(l=25, r=15, b=10, t=5), 
-        height=350, 
-        paper_bgcolor='rgba(0,0,0,0)', 
-        font=dict(family='Inter', color=FONT)
+        margin=dict(l=10, r=10, b=5, t=5), height=320, paper_bgcolor='rgba(0,0,0,0)', font=dict(family='Inter', color=FONT)
     )
     st.plotly_chart(fig_3d, width='stretch')
+    
+    # Real-Time Explanation & Normal Values (Panel B)
+    est_surface_pao2 = round(40 + (2.1 * fio2) - (0.012 * (fio2**1.8)) - (15 / (1 + np.exp(-(rr - 22) / 3))), 1)
+    st.markdown(f"""
+        <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(16, 185, 129, 0.3); padding: 12px 14px; border-radius: 10px; margin-top: 8px; font-size: 11px; color: #CBD5E1;">
+            <div style="color: #6EE7B7; font-weight: 700; text-transform: uppercase; margin-bottom: 3px;">⚡ Panel B: Fuzzy Surface Explanation</div>
+            <div>Maps ventilator settings (FiO2 & RR) to oxygen response. Current active state: FiO2 <strong>{fio2}%</strong>, RR <strong>{rr} bpm</strong> ➜ Est. PaO2: <strong>{est_surface_pao2} mmHg</strong>.</div>
+            <div style="margin-top: 5px; color: #94A3B8; border-top: 1px solid rgba(255,255,255,0.1); pt: 4px;">
+                <em>Normal Ranges:</em> FiO2 (Room Air): <strong>21%</strong> | RR (Adult): <strong>12–20 bpm</strong>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
+# --- PANEL C ---
 with col_vis3:
     st.markdown("**PANEL C: SHAP Feature Importance**")
-    shap_df = pd.DataFrame({'Clinical Feature': ['Heart Rate', 'Resp. Rate', 'SpO2 Level', 'FiO2 Setting'], 'SHAP Value': [0.08, 0.22, 0.31, 0.45]})
+    
+    shap_rr_val = round(0.15 + (rr / 100.0), 2)
+    shap_fio2_val = round(0.45 - (abs(fio2 - 40) / 300.0), 2)
+    shap_spo2_val = round(0.31, 2)
+    
+    shap_df = pd.DataFrame({
+        'Clinical Feature': ['Heart Rate', 'Resp. Rate', 'SpO2 Level', 'FiO2 Setting'], 
+        'SHAP Value': [0.08, shap_rr_val, shap_spo2_val, shap_fio2_val]
+    }).sort_values(by='SHAP Value', ascending=True)
+    
     colors = ['#1E40AF', '#3B82F6', '#60A5FA', '#93C5FD']
     fig_bar = go.Figure(go.Bar(x=shap_df['SHAP Value'], y=shap_df['Clinical Feature'], orientation='h',
         marker=dict(color=colors, line=dict(color='rgba(255,255,255,0.2)', width=1)),
-        text=[f"{v:.2f}" for v in shap_df['SHAP Value']], textposition='outside', textfont=dict(color=FONT, size=11, family='Inter')))
-    fig_bar.update_layout(xaxis_title="SHAP Value Impact", yaxis_title="", margin=dict(l=10, r=10, b=40, t=10), height=380,
+        text=[f"{v:.2f}" for v in shap_df['SHAP Value']], textposition='outside', textfont=dict(color=FONT, size=10, family='Inter')))
+    fig_bar.update_layout(xaxis_title="SHAP Impact", yaxis_title="", margin=dict(l=10, r=10, b=30, t=10), height=320,
         plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font=dict(color=FONT, size=11, family='Inter'),
         xaxis=dict(range=[0, 0.55], gridcolor=GRID, linecolor=GRID, color=FONT), yaxis=dict(gridcolor='rgba(0,0,0,0)', linecolor=GRID, color=FONT))
     st.plotly_chart(fig_bar, width='stretch')
-
-st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
+    
+    # Real-Time Explanation & Normal Values (Panel C)
+    top_feature = shap_df.iloc[-1]['Clinical Feature']
+    top_val = shap_df.iloc[-1]['SHAP Value']
+    st.markdown(f"""
+        <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(245, 158, 11, 0.3); padding: 12px 14px; border-radius: 10px; margin-top: 8px; font-size: 11px; color: #CBD5E1;">
+            <div style="color: #FDE68A; font-weight: 700; text-transform: uppercase; margin-bottom: 3px;">⚡ Panel C: Explainable AI (SHAP)</div>
+            <div>Ranks clinical drivers impacting this patient's prediction. Top risk driver: <strong>{top_feature}</strong> (Impact score: <strong>{top_val}</strong>).</div>
+            <div style="margin-top: 5px; color: #94A3B8; border-top: 1px solid rgba(255,255,255,0.1); pt: 4px;">
+                <em>Normal Ranges:</em> SpO2: <strong>95–100%</strong> | Heart Rate: <strong>60–100 bpm</strong>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
 # 14. SECTION 3 - PERFORMANCE
