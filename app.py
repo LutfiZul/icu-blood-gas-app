@@ -1087,6 +1087,7 @@ else:
     st.markdown(f'<div class="status-warning">🚨 <strong>TARGETED BLOOD DRAW REQUIRED:</strong> Recommended ONLY at Hour(s): <strong>{", ".join(map(str, critical_sampling_hours))}</strong></div>', unsafe_allow_html=True)
 
 st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
+
 # ------------------------------------------------------------------
 # 13. SECTION 2 - VISUALIZATIONS & REAL-TIME CLINICAL EXPLANATIONS
 # ------------------------------------------------------------------
@@ -1121,19 +1122,18 @@ with col_vis1:
         xaxis=dict(gridcolor=GRID, linecolor=GRID, color=FONT), yaxis=dict(gridcolor=GRID, linecolor=GRID, color=FONT))
     st.plotly_chart(fig_line, width='stretch')
     
-    # Real-Time Explanation & Normal Values (Panel A)
     status_text_a = f"Stable 24h Outlook" if not critical_sampling_hours else f"Critical Hours: {', '.join(map(str, critical_sampling_hours))}"
     st.markdown(f"""
         <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(59, 130, 246, 0.3); padding: 12px 14px; border-radius: 10px; margin-top: 8px; font-size: 11px; color: #CBD5E1;">
             <div style="color: #93C5FD; font-weight: 700; text-transform: uppercase; margin-bottom: 3px;">⚡ Panel A: Trajectory Explanation</div>
             <div>Forecasts 24h continuous blood gas changes. Current Status: <strong>{status_text_a}</strong>. End PaO2: <strong>{pao2_trajectory[-1]} mmHg</strong>.</div>
-            <div style="margin-top: 5px; color: #94A3B8; border-top: 1px solid rgba(255,255,255,0.1); pt: 4px;">
+            <div style="margin-top: 5px; color: #94A3B8; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px;">
                 <em>Normal Ranges:</em> PaO2: <strong>75–100 mmHg</strong> | pH: <strong>7.35–7.45</strong> | PaCO2: <strong>35–45 mmHg</strong>
             </div>
         </div>
     """, unsafe_allow_html=True)
 
-# --- PANEL B ---
+# --- PANEL B (WITH AUTO-ROTATE IDLE ANIMATION) ---
 with col_vis2:
     st.markdown("**PANEL B: ANFIS 3D Fuzzy Surface**")
     st.markdown("""
@@ -1153,8 +1153,6 @@ with col_vis2:
         z=Z, x=x_axis, y=y_axis, colorscale="Viridis",
         colorbar=dict(title=dict(text="PaO2", font=dict(color=FONT, size=9)), thickness=10, len=0.6, tickfont=dict(size=8, color=FONT))
     )])
-    
-    # Tetapan kamera awal untuk 3D surface
     fig_3d.update_layout(
         scene=dict(
             xaxis_title='FiO2', yaxis_title='RR', zaxis_title='PaO2',
@@ -1166,55 +1164,57 @@ with col_vis2:
         margin=dict(l=10, r=10, b=5, t=5), height=320, paper_bgcolor='rgba(0,0,0,0)', font=dict(family='Inter', color=FONT)
     )
     
-    # Render plot 3D
-    chart_placeholder = st.empty()
-    with chart_placeholder.container():
-        st.plotly_chart(fig_3d, width='stretch', key="anfis_3d_surface")
+    st.plotly_chart(fig_3d, width='stretch', key="anfis_3d_surface")
 
-    # Skrip JavaScript untuk Auto-Rotate Kamera 3D secara Lancar
+    # JavaScript auto-rotate idle animation
     auto_rotate_script = """
     <script>
     (function() {
         const doc = window.parent.document;
-        setTimeout(() => {
-            const plotDiv = doc.querySelector('.js-plotly-plot');
-            if (plotDiv && window.Plotly && !plotDiv.dataset.rotating) {
-                plotDiv.dataset.rotating = "true";
-                let angle = 0;
-                let isInteracting = false;
+        const checkPlotly = setInterval(() => {
+            const plots = doc.querySelectorAll('.js-plotly-plot');
+            if (plots.length > 0) {
+                plots.forEach(plotDiv => {
+                    if (plotDiv && window.Plotly && !plotDiv.dataset.rotating) {
+                        plotDiv.dataset.rotating = "true";
+                        let angle = 0;
+                        let isInteracting = false;
 
-                plotDiv.on('plotly_relayout', () => {
-                    isInteracting = true;
-                    setTimeout(() => { isInteracting = false; }, 4000);
-                });
-
-                setInterval(() => {
-                    if (!isInteracting && plotDiv && plotDiv._fullLayout) {
-                        angle += 0.5;
-                        const rad = angle * (Math.PI / 180);
-                        const radius = 2.4;
-                        const eyeX = radius * Math.cos(rad);
-                        const eyeY = radius * Math.sin(rad);
-                        
-                        window.Plotly.relayout(plotDiv, {
-                            'scene.camera.eye': { x: eyeX, y: eyeY, z: 1.3 }
+                        plotDiv.on('plotly_relayout', () => {
+                            isInteracting = true;
+                            setTimeout(() => { isInteracting = false; }, 5000);
                         });
+
+                        setInterval(() => {
+                            if (!isInteracting && plotDiv && plotDiv._fullLayout) {
+                                angle += 0.4;
+                                const rad = angle * (Math.PI / 180);
+                                const radius = 2.4;
+                                const eyeX = radius * Math.cos(rad);
+                                const eyeY = radius * Math.sin(rad);
+                                
+                                window.Plotly.relayout(plotDiv, {
+                                    'scene.camera.eye': { x: eyeX, y: eyeY, z: 1.3 }
+                                });
+                            }
+                        }, 80);
+                        
+                        clearInterval(checkPlotly);
                     }
-                }, 75);
+                });
             }
-        }, 1000);
+        }, 500);
     })();
     </script>
     """
     components.html(auto_rotate_script, height=0)
 
-    # Real-Time Explanation & Normal Values (Panel B)
     est_surface_pao2 = round(40 + (2.1 * fio2) - (0.012 * (fio2**1.8)) - (15 / (1 + np.exp(-(rr - 22) / 3))), 1)
     st.markdown(f"""
         <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(16, 185, 129, 0.3); padding: 12px 14px; border-radius: 10px; margin-top: 8px; font-size: 11px; color: #CBD5E1;">
             <div style="color: #6EE7B7; font-weight: 700; text-transform: uppercase; margin-bottom: 3px;">⚡ Panel B: Fuzzy Surface Explanation</div>
             <div>Maps ventilator settings (FiO2 & RR) to oxygen response. Current active state: FiO2 <strong>{fio2}%</strong>, RR <strong>{rr} bpm</strong> ➜ Est. PaO2: <strong>{est_surface_pao2} mmHg</strong>.</div>
-            <div style="margin-top: 5px; color: #94A3B8; border-top: 1px solid rgba(255,255,255,0.1); pt: 4px;">
+            <div style="margin-top: 5px; color: #94A3B8; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px;">
                 <em>Normal Ranges:</em> FiO2 (Room Air): <strong>21%</strong> | RR (Adult): <strong>12–20 bpm</strong>
             </div>
         </div>
@@ -1242,18 +1242,19 @@ with col_vis3:
         xaxis=dict(range=[0, 0.55], gridcolor=GRID, linecolor=GRID, color=FONT), yaxis=dict(gridcolor='rgba(0,0,0,0)', linecolor=GRID, color=FONT))
     st.plotly_chart(fig_bar, width='stretch')
     
-    # Real-Time Explanation & Normal Values (Panel C)
     top_feature = shap_df.iloc[-1]['Clinical Feature']
     top_val = shap_df.iloc[-1]['SHAP Value']
     st.markdown(f"""
         <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(245, 158, 11, 0.3); padding: 12px 14px; border-radius: 10px; margin-top: 8px; font-size: 11px; color: #CBD5E1;">
             <div style="color: #FDE68A; font-weight: 700; text-transform: uppercase; margin-bottom: 3px;">⚡ Panel C: Explainable AI (SHAP)</div>
             <div>Ranks clinical drivers impacting this patient's prediction. Top risk driver: <strong>{top_feature}</strong> (Impact score: <strong>{top_val}</strong>).</div>
-            <div style="margin-top: 5px; color: #94A3B8; border-top: 1px solid rgba(255,255,255,0.1); pt: 4px;">
+            <div style="margin-top: 5px; color: #94A3B8; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px;">
                 <em>Normal Ranges:</em> SpO2: <strong>95–100%</strong> | Heart Rate: <strong>60–100 bpm</strong>
             </div>
         </div>
     """, unsafe_allow_html=True)
+
+st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
 # 14. SECTION 3 - PERFORMANCE
