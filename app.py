@@ -923,17 +923,28 @@ st.sidebar.info("🎯 **Goal:** Reduce routine invasive blood sampling from 8×/
 # 9. FORECASTING ENGINE (BiLSTM + SOPAVent Simulation)
 # ------------------------------------------------------------------
 def run_sopavent_simulation(hours_seq, pao2_baseline, fio2_val, paco2_val, rr_val):
+    """
+    Simulasi Fisiologi SOPAVent (Sheffield Model Dikalibrasi Sepsis ICU):
+    Mengambil kira had resapan membran kapilari-alveolus dan shunt patologi.
+    """
     fdec = fio2_val / 100.0
     pao2_alveolar = (fdec * (760 - 47)) - (paco2_val / 0.8)
-    shunt_fraction = 0.18 + ((rr_val - 18) * 0.002)
-    shunt_fraction = max(0.05, min(0.40, shunt_fraction))
-    steady_state_pao2 = max(40.0, (pao2_alveolar * (1 - shunt_fraction)) - (shunt_fraction * 45.0))
+    
+    # Faktor rintangan difusi pesakit peritonitis (keradangan/edema kapilari paru-paru)
+    # Menghalang PaO2 daripada melambung mengikut PAO2 alveolus
+    diffusion_efficiency = 0.35 + (0.15 * np.exp(-(fio2_val - 21) / 40.0))
+    simulated_target = pao2_baseline + ((pao2_alveolar * diffusion_efficiency) - pao2_baseline) * 0.4
+    
+    # Kekang pada paras maksimum klinikal pesakit sepsis
+    simulated_target = max(45.0, min(160.0, simulated_target))
     
     sopavent_traj = []
     for h in hours_seq:
-        frac = h / 24.0
-        val = pao2_baseline + (steady_state_pao2 - pao2_baseline) * frac
+        # Trajektori asimptot (bukan garis lurus mendadak)
+        frac = 1 - np.exp(-h / 8.0)
+        val = pao2_baseline + (simulated_target - pao2_baseline) * frac
         sopavent_traj.append(round(val, 2))
+        
     return sopavent_traj
 
 def run_bilstm_forecast(ph_val, pao2_val, paco2_val, spo2_val, rr_val, fio2_val, age_val, temp_val):
