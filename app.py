@@ -1138,5 +1138,78 @@ with col_vis1:
     fig_line = go.Figure()
     
     # BiLSTM Predicted PaO2
-    fig_line.add_trace(go.Scatter(x=hours, y=pao2_trajectory, mode='lines+markers', name='BiLSTM PaO2 (mmHg)',
-        line=dict(color=BLUE, width=3), marker=dict(size=
+    fig_line.add_trace(go.Scatter(
+        x=hours, 
+        y=pao2_trajectory, 
+        mode='lines+markers', 
+        name='BiLSTM PaO2 (mmHg)',
+        line=dict(color=BLUE, width=3), 
+        marker=dict(size=8, color=BLUE, line=dict(width=2, color='#1E293B')),
+        fill='tozeroy', 
+        fillcolor='rgba(96, 165, 250, 0.12)'
+    ))
+    
+    # SOPAVent Physiological Simulation PaO2
+    fig_line.add_trace(go.Scatter(
+        x=hours, 
+        y=sopavent_trajectory, 
+        mode='lines', 
+        name='SOPAVent Sim PaO2',
+        line=dict(color=CYAN, width=2, dash='longdashdot')
+    ))
+    
+    # pH & PaCO2
+    fig_line.add_trace(go.Scatter(
+        x=hours, 
+        y=[p*10 for p in ph_trajectory], 
+        mode='lines+markers',
+        name='pH (×10)', 
+        line=dict(color=GREEN, width=2, dash='dash'), 
+        marker=dict(size=6, color=GREEN)
+    ))
+    fig_line.add_trace(go.Scatter(
+        x=hours, 
+        y=[p*2 for p in paco2_trajectory], 
+        mode='lines+markers',
+        name='PaCO2 (×2)', 
+        line=dict(color=AMBER, width=2, dash='dot'), 
+        marker=dict(size=6, color=AMBER)
+    ))
+    
+    fig_line.add_hline(y=70, line_dash="dot", line_color=RED, annotation_text="Hypoxemia (70)", annotation_font_color=RED, annotation_font_size=10)
+    
+    if critical_sampling_hours:
+        crit_pao2 = [pao2_trajectory[hours.index(h)] for h in critical_sampling_hours]
+        fig_line.add_trace(go.Scatter(
+            x=critical_sampling_hours, 
+            y=crit_pao2, 
+            mode='markers', 
+            name='⚠️ Critical',
+            marker=dict(size=14, color=RED, symbol='x')
+        ))
+            
+    fig_line.update_layout(
+        xaxis_title="Hours after Admission", 
+        yaxis_title="Trajectory Level",
+        margin=dict(l=10, r=10, b=30, t=10), 
+        height=320,
+        plot_bgcolor='rgba(0,0,0,0)', 
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(color=FONT, size=11, family='Inter'),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=9, color=FONT), bgcolor='rgba(0,0,0,0)'),
+        hovermode='x unified',
+        xaxis=dict(gridcolor=GRID, linecolor=GRID, color=FONT), 
+        yaxis=dict(gridcolor=GRID, linecolor=GRID, color=FONT)
+    )
+    st.plotly_chart(fig_line, width='stretch')
+    
+    status_text_a = f"Stable 24h Outlook" if not critical_sampling_hours else f"Critical Hours: {', '.join(map(str, critical_sampling_hours))}"
+    st.markdown(f"""
+        <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(59, 130, 246, 0.3); padding: 12px 14px; border-radius: 10px; margin-top: 8px; font-size: 11px; color: #CBD5E1;">
+            <div style="color: #93C5FD; font-weight: 700; text-transform: uppercase; margin-bottom: 3px;">⚡ Panel A: BiLSTM vs SOPAVent Benchmark</div>
+            <div>Forecasts 24h blood gas changes. Current Status: <strong>{status_text_a}</strong>. End BiLSTM PaO2: <strong>{pao2_trajectory[-1]} mmHg</strong> vs SOPAVent: <strong>{sopavent_trajectory[-1]} mmHg</strong>.</div>
+            <div style="margin-top: 5px; color: #94A3B8; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px;">
+                <em>Normal Ranges:</em> PaO2: <strong>75–100 mmHg</strong> | pH: <strong>7.35–7.45</strong> | PaCO2: <strong>35–45 mmHg</strong>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
