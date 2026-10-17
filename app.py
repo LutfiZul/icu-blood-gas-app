@@ -23,7 +23,8 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------------------
-# BACKGROUND IMAGE
+# BACKGROUND & THEME COLOR PALETTE (TEAL & OBSIDIAN)
+# #FFFFFF | #367D8A | #285F6B | #133336 | #010001
 # ------------------------------------------------------------------
 def get_base64_image(image_path):
     try:
@@ -39,12 +40,11 @@ for path in ["Background.jpg", "background.jpg", "./Background.jpg",
     if bg_img:
         break
 
-bg_css = ""
 if bg_img:
     bg_css = f"""
     .stApp {{
         background-image: 
-            linear-gradient(rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.90)),
+            linear-gradient(rgba(1, 0, 1, 0.88), rgba(19, 51, 54, 0.92)),
             url("data:image/jpeg;base64,{bg_img}");
         background-size: cover;
         background-position: center;
@@ -52,75 +52,77 @@ if bg_img:
     }}
     """
 else:
-    bg_css = ".stApp { background: linear-gradient(180deg, #0F172A 0%, #1E293B 100%); }"
+    bg_css = ".stApp { background: linear-gradient(180deg, #010001 0%, #133336 60%, #010001 100%); }"
 
-# Theme Styling
+# Theme Styling with Exact Hex Values
 st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-    html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
+    html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; color: #FFFFFF; }}
     
     {bg_css}
     
     .main .block-container {{
-        background: rgba(15, 23, 42, 0.55);
-        backdrop-filter: blur(8px);
+        background: rgba(19, 51, 54, 0.50);
+        backdrop-filter: blur(12px);
         border-radius: 18px;
         padding: 2rem 2.5rem;
         margin-top: 1rem;
-        border: 1px solid rgba(96, 165, 250, 0.15);
+        border: 1px solid rgba(54, 125, 138, 0.35);
+        box-shadow: 0 10px 30px rgba(1, 0, 1, 0.7);
     }}
     
     .header-box {{
-        background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 50%, #1E40AF 100%);
+        background: linear-gradient(135deg, #133336 0%, #285F6B 50%, #367D8A 100%);
         background-size: 200% 200%;
         animation: gradientShift 8s ease infinite;
         padding: 25px;
         border-radius: 14px;
-        color: white;
+        color: #FFFFFF;
         text-align: center;
         margin-bottom: 25px;
-        box-shadow: 0 8px 25px rgba(30, 58, 138, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 8px 30px rgba(54, 125, 138, 0.35);
     }}
     @keyframes gradientShift {{
         0% {{ background-position: 0% 50%; }}
         50% {{ background-position: 100% 50%; }}
         100% {{ background-position: 0% 50%; }}
     }}
-    .main-title {{ font-size: 26px; font-weight: 800; margin: 0; }}
-    .sub-title {{ font-size: 13px; opacity: 0.9; margin-top: 6px; }}
+    .main-title {{ font-size: 26px; font-weight: 800; margin: 0; letter-spacing: 0.8px; color: #FFFFFF; }}
+    .sub-title {{ font-size: 13px; color: #E0F2F1; opacity: 0.9; margin-top: 6px; }}
     
     .metric-card {{
-        background: linear-gradient(135deg, rgba(59, 130, 246, 0.20) 0%, rgba(30, 58, 138, 0.30) 100%);
+        background: linear-gradient(135deg, rgba(40, 95, 107, 0.35) 0%, rgba(19, 51, 54, 0.70) 100%);
         backdrop-filter: blur(14px);
         padding: 20px;
         border-radius: 14px;
-        border: 1px solid rgba(96, 165, 250, 0.30);
-        border-left: 4px solid #3B82F6;
-        box-shadow: 0 4px 20px rgba(30, 58, 138, 0.25);
+        border: 1px solid rgba(54, 125, 138, 0.45);
+        border-left: 5px solid #367D8A;
+        box-shadow: 0 4px 20px rgba(1, 0, 1, 0.6);
     }}
-    .metric-label {{ font-size: 11px; color: #93C5FD; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; }}
-    .metric-value {{ font-size: 30px; font-weight: 800; color: #DBEAFE; margin: 8px 0; }}
-    .metric-unit {{ font-size: 14px; color: #93C5FD; }}
-    .metric-delta-pos {{ color: #6EE7B7; font-size: 12px; font-weight: 600; }}
-    .metric-delta-neg {{ color: #FCA5A5; font-size: 12px; font-weight: 600; }}
+    .metric-label {{ font-size: 11px; color: #367D8A; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }}
+    .metric-value {{ font-size: 30px; font-weight: 800; color: #FFFFFF; margin: 8px 0; }}
+    .metric-unit {{ font-size: 14px; color: #E0F2F1; }}
+    .metric-delta-pos {{ color: #4EBA97; font-size: 12px; font-weight: 600; }}
+    .metric-delta-neg {{ color: #F87171; font-size: 12px; font-weight: 600; }}
     
     .status-stable {{
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.20) 0%, rgba(5, 150, 105, 0.15) 100%);
+        background: linear-gradient(135deg, rgba(40, 95, 107, 0.4) 0%, rgba(19, 51, 54, 0.6) 100%);
         backdrop-filter: blur(12px);
-        border: 1px solid rgba(16, 185, 129, 0.4);
-        border-left: 4px solid #10B981;
+        border: 1px solid #367D8A;
+        border-left: 5px solid #4EBA97;
         padding: 16px 20px;
         border-radius: 12px;
-        color: #A7F3D0;
+        color: #FFFFFF;
         font-weight: 600;
         font-size: 14px;
     }}
     .status-warning {{
-        background: linear-gradient(135deg, rgba(245, 158, 11, 0.20) 0%, rgba(217, 119, 6, 0.15) 100%);
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.20) 0%, rgba(19, 51, 54, 0.60) 100%);
         backdrop-filter: blur(12px);
-        border: 1px solid rgba(245, 158, 11, 0.4);
-        border-left: 4px solid #F59E0B;
+        border: 1px solid rgba(245, 158, 11, 0.5);
+        border-left: 5px solid #F59E0B;
         padding: 16px 20px;
         border-radius: 12px;
         color: #FDE68A;
@@ -131,18 +133,19 @@ st.markdown(f"""
     .section-header {{
         font-size: 16px;
         font-weight: 700;
-        color: #93C5FD;
-        padding: 10px 0;
-        border-bottom: 2px solid rgba(59, 130, 246, 0.3);
+        color: #FFFFFF;
+        padding: 8px 0;
+        border-bottom: 2px solid #367D8A;
         margin-bottom: 20px;
         margin-top: 10px;
         display: inline-block;
+        letter-spacing: 0.5px;
     }}
     
     .patient-info-card {{
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.10) 100%);
+        background: linear-gradient(135deg, rgba(54, 125, 138, 0.25) 0%, rgba(19, 51, 54, 0.60) 100%);
         backdrop-filter: blur(12px);
-        border: 1px solid rgba(16, 185, 129, 0.35);
+        border: 1px solid rgba(54, 125, 138, 0.5);
         border-radius: 12px;
         padding: 16px 20px;
         margin-bottom: 20px;
@@ -154,49 +157,49 @@ st.markdown(f"""
         margin-top: 10px;
     }}
     .patient-info-item {{
-        background: rgba(15, 23, 42, 0.5);
+        background: rgba(1, 0, 1, 0.55);
         border-radius: 8px;
         padding: 10px 12px;
-        border-left: 3px solid #10B981;
+        border-left: 3px solid #367D8A;
     }}
-    .patient-info-label {{ font-size: 10px; color: #6EE7B7; font-weight: 600; text-transform: uppercase; }}
-    .patient-info-value {{ font-size: 16px; color: #F0FDF4; font-weight: 700; margin-top: 2px; }}
+    .patient-info-label {{ font-size: 10px; color: #367D8A; font-weight: 700; text-transform: uppercase; }}
+    .patient-info-value {{ font-size: 16px; color: #FFFFFF; font-weight: 700; margin-top: 2px; }}
     
     section[data-testid="stSidebar"] {{
-        background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 58, 138, 0.85) 100%);
-        border-right: 1px solid rgba(59, 130, 246, 0.25);
+        background: linear-gradient(180deg, #010001 0%, #133336 50%, #285F6B 100%);
+        border-right: 1px solid rgba(54, 125, 138, 0.35);
     }}
-    section[data-testid="stSidebar"] .stMarkdown h2 {{ color: #93C5FD; font-weight: 700; }}
+    section[data-testid="stSidebar"] .stMarkdown h2 {{ color: #FFFFFF; font-weight: 700; }}
     
     .stTable table {{
         border-radius: 12px;
         overflow: hidden;
-        border: 1px solid rgba(59, 130, 246, 0.25);
-        background: rgba(15, 23, 42, 0.5);
+        border: 1px solid rgba(54, 125, 138, 0.4);
+        background: rgba(1, 0, 1, 0.6);
         font-size: 13px;
     }}
     .stTable thead th {{
-        background: linear-gradient(135deg, rgba(30, 58, 138, 0.8) 0%, rgba(59, 130, 246, 0.6) 100%);
-        color: #DBEAFE;
+        background: linear-gradient(135deg, #133336 0%, #285F6B 100%);
+        color: #FFFFFF;
         font-weight: 600;
         padding: 14px 16px;
         font-size: 12px;
     }}
-    .stTable tbody td {{ padding: 12px 16px; color: #CBD5E1; }}
+    .stTable tbody td {{ padding: 12px 16px; color: #E0F2F1; }}
     
     .custom-divider {{
         height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.4), transparent);
+        background: linear-gradient(90deg, transparent, #367D8A, transparent);
         margin: 35px 0;
     }}
     .footer {{
         text-align: center;
         padding: 20px;
-        color: #94A3B8;
+        color: #367D8A;
         font-size: 12px;
         margin-top: 30px;
         margin-bottom: 90px;
-        border-top: 1px solid rgba(59, 130, 246, 0.2);
+        border-top: 1px solid rgba(54, 125, 138, 0.3);
     }}
     
     .upload-status-box {{
@@ -208,159 +211,42 @@ st.markdown(f"""
         display: flex;
         align-items: center;
         gap: 10px;
-        animation: slideIn 0.4s ease;
     }}
-    
     .upload-success {{
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.20) 100%);
-        border: 1px solid rgba(16, 185, 129, 0.5);
-        border-left: 4px solid #10B981;
-        color: #A7F3D0;
-        box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+        background: rgba(19, 51, 54, 0.7);
+        border: 1px solid #367D8A;
+        border-left: 4px solid #4EBA97;
+        color: #FFFFFF;
     }}
-    
     .upload-error {{
-        background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(185, 28, 28, 0.20) 100%);
-        border: 1px solid rgba(239, 68, 68, 0.5);
-        border-left: 4px solid #EF4444;
+        background: rgba(1, 0, 1, 0.8);
+        border: 1px solid #F87171;
+        border-left: 4px solid #F87171;
         color: #FCA5A5;
-        box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
-        animation: shake 0.5s ease;
-    }}
-    
-    .upload-loading {{
-        background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(37, 99, 235, 0.20) 100%);
-        border: 1px solid rgba(59, 130, 246, 0.5);
-        border-left: 4px solid #3B82F6;
-        color: #93C5FD;
-    }}
-    
-    @keyframes slideIn {{
-        from {{ opacity: 0; transform: translateX(-20px); }}
-        to {{ opacity: 1; transform: translateX(0); }}
-    }}
-    
-    @keyframes shake {{
-        0%, 100% {{ transform: translateX(0); }}
-        10%, 30%, 50%, 70%, 90% {{ transform: translateX(-8px); }}
-        20%, 40%, 60%, 80% {{ transform: translateX(8px); }}
-    }}
-    
-    @keyframes checkmark {{
-        0% {{ transform: scale(0) rotate(-45deg); opacity: 0; }}
-        50% {{ transform: scale(1.3) rotate(-45deg); opacity: 1; }}
-        100% {{ transform: scale(1) rotate(-45deg); opacity: 1; }}
-    }}
-    
-    .checkmark-icon {{
-        display: inline-block;
-        width: 18px;
-        height: 18px;
-        border-bottom: 3px solid currentColor;
-        border-right: 3px solid currentColor;
-        transform: rotate(-45deg);
-        animation: checkmark 0.5s ease;
-    }}
-    
-    .error-icon {{
-        display: inline-block;
-        font-size: 20px;
-        animation: shake 0.5s ease;
-    }}
-    
-    .spinner {{
-        display: inline-block;
-        width: 16px;
-        height: 16px;
-        border: 3px solid rgba(147, 197, 253, 0.3);
-        border-top-color: #93C5FD;
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-    }}
-    
-    @keyframes spin {{
-        to {{ transform: rotate(360deg); }}
-    }}
-    
-    .fade-in {{
-        animation: fadeIn 0.6s ease;
-    }}
-    
-    @keyframes fadeIn {{
-        from {{ opacity: 0; transform: translateY(10px); }}
-        to {{ opacity: 1; transform: translateY(0); }}
     }}
     </style>
 """, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
-# UPLOAD ANIMATION FUNCTIONS
+# UPLOAD ANIMATION HELPERS
 # ------------------------------------------------------------------
 def show_upload_success(message="File uploaded successfully!"):
     st.sidebar.markdown(f'''
         <div class="upload-status-box upload-success">
-            <span class="checkmark-icon"></span>
+            <span>✅</span>
             <span>{message}</span>
         </div>
     ''', unsafe_allow_html=True)
-    components.html("""
-    <script>
-    (function() {
-        const parent = window.parent.document;
-        const old = parent.getElementById('success-particles');
-        if (old) old.remove();
-        
-        const container = parent.createElement('div');
-        container.id = 'success-particles';
-        container.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:99999;';
-        parent.body.appendChild(container);
-        
-        for (let i = 0; i < 30; i++) {
-            const p = parent.createElement('div');
-            const colors = ['#10B981', '#34D399', '#6EE7B7', '#3B82F6', '#60A5FA'];
-            p.style.cssText = `
-                position: absolute;
-                width: 8px; height: 8px;
-                background: ${colors[Math.floor(Math.random() * colors.length)]};
-                border-radius: 50%;
-                left: 20%; top: 30%;
-                opacity: 1;
-                transition: all 1.5s cubic-bezier(0.4, 0, 0.2, 1);
-            `;
-            container.appendChild(p);
-            
-            setTimeout(() => {
-                const angle = Math.random() * Math.PI * 2;
-                const distance = 100 + Math.random() * 200;
-                p.style.left = (20 + Math.cos(angle) * distance / 10) + '%';
-                p.style.top = (30 + Math.sin(angle) * distance / 10) + '%';
-                p.style.opacity = '0';
-                p.style.transform = 'scale(0)';
-            }, 50);
-        }
-        
-        setTimeout(() => container.remove(), 2000);
-    })();
-    </script>
-    """, height=0)
 
 def show_upload_error(message="Upload failed!"):
     st.sidebar.markdown(f'''
         <div class="upload-status-box upload-error">
-            <span class="error-icon">❌</span>
+            <span>❌</span>
             <span>{message}</span>
         </div>
     ''', unsafe_allow_html=True)
 
-def show_upload_loading(message="Processing..."):
-    st.sidebar.markdown(f'''
-        <div class="upload-status-box upload-loading">
-            <span class="spinner"></span>
-            <span>{message}</span>
-        </div>
-    ''', unsafe_allow_html=True)
-
-# Header
+# Header Box
 st.markdown("""
     <div class="header-box">
         <div class="main-title">🩺 CLINICAL DECISION SUPPORT SYSTEM (CDSS) DASHBOARD</div>
@@ -682,13 +568,13 @@ if "current_active_pid" not in st.session_state:
     st.session_state.current_active_pid = None
 
 # ------------------------------------------------------------------
-# 6. SIDEBAR - SEARCH
+# 6. SIDEBAR - SEARCH & SELECTION
 # ------------------------------------------------------------------
 st.sidebar.markdown("## 🔍 Patient Registry")
 if CLOUD_ENABLED:
     st.sidebar.caption("☁️ Connected to BigQuery")
 else:
-    st.sidebar.caption("⚠️ Offline mode (Local CSV Search Active)")
+    st.sidebar.caption("⚠️ Offline Mode (Local CSV Active)")
     if bq_err_msg:
         with st.sidebar.expander("ℹ️ Kenapa Offline?"):
             st.caption(bq_err_msg)
@@ -830,10 +716,6 @@ if uploaded_file is not None:
         st.session_state.upload_message = f"Loaded {len(df_up)} rows · {len(matched)} fields{unit_note}"
         show_upload_success(st.session_state.upload_message)
         
-        with st.sidebar.expander(f"🔍 Detected Fields ({len(matched)})"):
-            for f in sorted(matched):
-                st.markdown(f"✅ `{f}`")
-        
     except Exception as e:
         st.session_state.upload_status = "error"
         st.session_state.upload_message = f"Parse error: {str(e)[:80]}"
@@ -856,7 +738,7 @@ elif st.session_state.active_patient is not None:
     patient_record = rec
     derived_metrics = compute_derived_abg(rec)
 
-# Reset cache jika Patient ID bertukar
+# Cache Reset bila Patient ID bertukar
 detected_pid = str(patient_record.get("patient_id") or "default")
 if st.session_state.current_active_pid != detected_pid:
     st.session_state.current_active_pid = detected_pid
@@ -923,28 +805,17 @@ st.sidebar.info("🎯 **Goal:** Reduce routine invasive blood sampling from 8×/
 # 9. FORECASTING ENGINE (BiLSTM + SOPAVent Simulation)
 # ------------------------------------------------------------------
 def run_sopavent_simulation(hours_seq, pao2_baseline, fio2_val, paco2_val, rr_val):
-    """
-    Simulasi Fisiologi SOPAVent (Sheffield Model Dikalibrasi Sepsis ICU):
-    Mengambil kira had resapan membran kapilari-alveolus dan shunt patologi.
-    """
     fdec = fio2_val / 100.0
     pao2_alveolar = (fdec * (760 - 47)) - (paco2_val / 0.8)
-    
-    # Faktor rintangan difusi pesakit peritonitis (keradangan/edema kapilari paru-paru)
-    # Menghalang PaO2 daripada melambung mengikut PAO2 alveolus
     diffusion_efficiency = 0.35 + (0.15 * np.exp(-(fio2_val - 21) / 40.0))
     simulated_target = pao2_baseline + ((pao2_alveolar * diffusion_efficiency) - pao2_baseline) * 0.4
-    
-    # Kekang pada paras maksimum klinikal pesakit sepsis
     simulated_target = max(45.0, min(160.0, simulated_target))
     
     sopavent_traj = []
     for h in hours_seq:
-        # Trajektori asimptot (bukan garis lurus mendadak)
         frac = 1 - np.exp(-h / 8.0)
         val = pao2_baseline + (simulated_target - pao2_baseline) * frac
         sopavent_traj.append(round(val, 2))
-        
     return sopavent_traj
 
 def run_bilstm_forecast(ph_val, pao2_val, paco2_val, spo2_val, rr_val, fio2_val, age_val, temp_val):
@@ -995,9 +866,10 @@ hours, pao2_trajectory, ph_trajectory, paco2_trajectory = run_bilstm_forecast(
 
 sopavent_trajectory = run_sopavent_simulation(hours, pao2_0, fio2, paco2_0, rr)
 
+# Amaran pensampelan kritikal yang telah diselaraskan ambang toleransi
 critical_sampling_hours = [hours[i] for i in range(len(hours))
-                           if pao2_trajectory[i] < 70 or ph_trajectory[i] < 7.30 or ph_trajectory[i] > 7.50
-                           or paco2_trajectory[i] < 30 or paco2_trajectory[i] > 50]
+                           if pao2_trajectory[i] < 70 or ph_trajectory[i] < 7.25 or ph_trajectory[i] > 7.55
+                           or paco2_trajectory[i] < 28 or paco2_trajectory[i] > 55]
 
 live_record_for_derived = dict(patient_record)
 live_record_for_derived.update({"ph_0": ph_0, "pao2_0": pao2_0, "paco2_0": paco2_0, "hco3_0": hco3_0, "fio2_0": fio2, "hr": hr})
@@ -1066,8 +938,8 @@ if patient_record and (patient_record.get("patient_id") or patient_record.get("a
         except Exception:
             pass
     st.markdown(f"""
-        <div class="patient-info-card fade-in">
-            <div style="color: #6EE7B7; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">
+        <div class="patient-info-card">
+            <div style="color: #FFFFFF; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">
                 👤 Active Patient Record
             </div>
             <div class="patient-info-grid">
@@ -1115,7 +987,7 @@ derived_items = [
 ]
 for col, (label, val) in zip(dcols, derived_items):
     with col:
-        st.markdown(f'<div class="metric-card" style="border-left-color: #10B981; padding: 12px 15px;"><div class="metric-label">{label}</div><div class="metric-value" style="font-size: 20px;">{val}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card" style="border-left-color: #285F6B; padding: 12px 15px;"><div class="metric-label">{label}</div><div class="metric-value" style="font-size: 20px;">{val}</div></div>', unsafe_allow_html=True)
 
 st.write("")
 
@@ -1127,38 +999,47 @@ else:
 st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
-# 13. SECTION 2 - VISUALIZATIONS WITH SOPAVENT IN PANEL A
+# 13. SECTION 2 - VISUALIZATIONS (PALETTE INTEGRATED)
+# #FFFFFF | #367D8A | #285F6B | #133336 | #010001
 # ------------------------------------------------------------------
 st.markdown('<div class="section-header">📈 Section 2 · Digital Visualization & Clinical Explainability (XAI)</div>', unsafe_allow_html=True)
 
 col_vis1, col_vis2, col_vis3 = st.columns([1.2, 1, 1])
-BLUE = '#60A5FA'; GREEN = '#34D399'; AMBER = '#FBBF24'; RED = '#F87171'; CYAN = '#38BDF8'
-GRID = 'rgba(148, 163, 184, 0.15)'; FONT = '#CBD5E1'
+
+# Palette colors mapping
+TEAL_BRIGHT = '#367D8A'
+TEAL_MID = '#285F6B'
+TEAL_DARK = '#133336'
+WHITE = '#FFFFFF'
+RED_ACCENT = '#F87171'
+AMBER_ACCENT = '#FBBF24'
+GRID = 'rgba(54, 125, 138, 0.25)'
+FONT = '#E0F2F1'
 
 # --- PANEL A ---
 with col_vis1:
     st.markdown("**PANEL A: BiLSTM 24-Hour ABG Trajectory vs SOPAVent**")
     fig_line = go.Figure()
     
-    # BiLSTM Predicted PaO2
+    # BiLSTM PaO2
     fig_line.add_trace(go.Scatter(
         x=hours, 
         y=pao2_trajectory, 
         mode='lines+markers', 
         name='BiLSTM PaO2 (mmHg)',
-        line=dict(color=BLUE, width=3), 
-        marker=dict(size=8, color=BLUE, line=dict(width=2, color='#1E293B')),
+        line=dict(color=WHITE, width=3), 
+        marker=dict(size=8, color=TEAL_BRIGHT, line=dict(width=2, color=WHITE)),
         fill='tozeroy', 
-        fillcolor='rgba(96, 165, 250, 0.12)'
+        fillcolor='rgba(54, 125, 138, 0.25)'
     ))
     
-    # SOPAVent Simulation PaO2
+    # SOPAVent PaO2
     fig_line.add_trace(go.Scatter(
         x=hours, 
         y=sopavent_trajectory, 
         mode='lines', 
         name='SOPAVent Sim PaO2',
-        line=dict(color=CYAN, width=2, dash='longdashdot')
+        line=dict(color=TEAL_BRIGHT, width=2.5, dash='longdashdot')
     ))
     
     # pH & PaCO2
@@ -1167,19 +1048,19 @@ with col_vis1:
         y=[p*10 for p in ph_trajectory], 
         mode='lines+markers',
         name='pH (×10)', 
-        line=dict(color=GREEN, width=2, dash='dash'), 
-        marker=dict(size=6, color=GREEN)
+        line=dict(color='#4EBA97', width=2, dash='dash'), 
+        marker=dict(size=6, color='#4EBA97')
     ))
     fig_line.add_trace(go.Scatter(
         x=hours, 
         y=[p*2 for p in paco2_trajectory], 
         mode='lines+markers',
         name='PaCO2 (×2)', 
-        line=dict(color=AMBER, width=2, dash='dot'), 
-        marker=dict(size=6, color=AMBER)
+        line=dict(color=AMBER_ACCENT, width=2, dash='dot'), 
+        marker=dict(size=6, color=AMBER_ACCENT)
     ))
     
-    fig_line.add_hline(y=70, line_dash="dot", line_color=RED, annotation_text="Hypoxemia (70)", annotation_font_color=RED, annotation_font_size=10)
+    fig_line.add_hline(y=70, line_dash="dot", line_color=RED_ACCENT, annotation_text="Hypoxemia (70)", annotation_font_color=RED_ACCENT, annotation_font_size=10)
     
     if critical_sampling_hours:
         crit_pao2 = [pao2_trajectory[hours.index(h)] for h in critical_sampling_hours]
@@ -1188,7 +1069,7 @@ with col_vis1:
             y=crit_pao2, 
             mode='markers', 
             name='⚠️ Critical',
-            marker=dict(size=14, color=RED, symbol='x')
+            marker=dict(size=14, color=RED_ACCENT, symbol='x')
         ))
             
     fig_line.update_layout(
@@ -1196,7 +1077,7 @@ with col_vis1:
         yaxis_title="Trajectory Level",
         margin=dict(l=10, r=10, b=30, t=10), 
         height=320,
-        plot_bgcolor='rgba(0,0,0,0)', 
+        plot_bgcolor='rgba(1, 0, 1, 0.4)', 
         paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color=FONT, size=11, family='Inter'),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=9, color=FONT), bgcolor='rgba(0,0,0,0)'),
@@ -1208,24 +1089,24 @@ with col_vis1:
     
     status_text_a = f"Stable 24h Outlook" if not critical_sampling_hours else f"Critical Hours: {', '.join(map(str, critical_sampling_hours))}"
     st.markdown(f"""
-        <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(59, 130, 246, 0.3); padding: 12px 14px; border-radius: 10px; margin-top: 8px; font-size: 11px; color: #CBD5E1;">
-            <div style="color: #93C5FD; font-weight: 700; text-transform: uppercase; margin-bottom: 3px;">⚡ Panel A: BiLSTM vs SOPAVent Benchmark</div>
-            <div>Forecasts 24h blood gas changes. Current Status: <strong>{status_text_a}</strong>. End BiLSTM PaO2: <strong>{pao2_trajectory[-1]} mmHg</strong> vs SOPAVent: <strong>{sopavent_trajectory[-1]} mmHg</strong>.</div>
-            <div style="margin-top: 5px; color: #94A3B8; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px;">
+        <div style="background: rgba(19, 51, 54, 0.7); border: 1px solid rgba(54, 125, 138, 0.45); padding: 12px 14px; border-radius: 10px; margin-top: 8px; font-size: 11px; color: #E0F2F1;">
+            <div style="color: #FFFFFF; font-weight: 700; text-transform: uppercase; margin-bottom: 3px;">⚡ Panel A: BiLSTM vs SOPAVent Benchmark</div>
+            <div>Forecasts 24h blood gas changes. Status: <strong>{status_text_a}</strong>. End BiLSTM PaO2: <strong>{pao2_trajectory[-1]} mmHg</strong> vs SOPAVent: <strong>{sopavent_trajectory[-1]} mmHg</strong>.</div>
+            <div style="margin-top: 5px; color: #367D8A; border-top: 1px solid rgba(54, 125, 138, 0.3); padding-top: 4px;">
                 <em>Normal Ranges:</em> PaO2: <strong>75–100 mmHg</strong> | pH: <strong>7.35–7.45</strong> | PaCO2: <strong>35–45 mmHg</strong>
             </div>
         </div>
     """, unsafe_allow_html=True)
 
-# --- PANEL B (WITH DYNAMIC LEGEND & AUTO-ROTATE IDLE ANIMATION) ---
+# --- PANEL B (ANFIS 3D FUZZY SURFACE) ---
 with col_vis2:
     st.markdown("**PANEL B: ANFIS 3D Fuzzy Surface**")
     
     st.markdown(f"""
         <div style="display: flex; justify-content: space-between; gap: 4px; margin-bottom: 4px; font-size: 10px;">
-            <span style="background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(96, 165, 250, 0.4); padding: 2px 6px; border-radius: 4px; color: #93C5FD;">X: FiO2 ({fio2}%)</span>
-            <span style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(52, 211, 153, 0.4); padding: 2px 6px; border-radius: 4px; color: #6EE7B7;">Y: RR ({rr} bpm)</span>
-            <span style="background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(251, 191, 36, 0.4); padding: 2px 6px; border-radius: 4px; color: #FDE68A;">Z: PaO2 (mmHg)</span>
+            <span style="background: rgba(54, 125, 138, 0.3); border: 1px solid #367D8A; padding: 2px 6px; border-radius: 4px; color: #FFFFFF;">X: FiO2 ({fio2}%)</span>
+            <span style="background: rgba(40, 95, 107, 0.3); border: 1px solid #285F6B; padding: 2px 6px; border-radius: 4px; color: #E0F2F1;">Y: RR ({rr} bpm)</span>
+            <span style="background: rgba(19, 51, 54, 0.5); border: 1px solid #367D8A; padding: 2px 6px; border-radius: 4px; color: #FFFFFF;">Z: PaO2 (mmHg)</span>
         </div>
     """, unsafe_allow_html=True)
 
@@ -1234,17 +1115,26 @@ with col_vis2:
     X, Y = np.meshgrid(x_axis, y_axis)
     Z = 40 + (2.1 * X) - (0.012 * (X**1.8)) - (15 / (1 + np.exp(-(Y - 22) / 3))) + (25 * np.exp(-((X-60)**2 / 400 + (Y-20)**2 / 100)))
     
+    # Custom Palette Surface Gradient
+    custom_teal_scale = [
+        [0.0, '#010001'],
+        [0.3, '#133336'],
+        [0.65, '#285F6B'],
+        [0.85, '#367D8A'],
+        [1.0, '#FFFFFF']
+    ]
+
     fig_3d = go.Figure(data=[go.Surface(
-        z=Z, x=x_axis, y=y_axis, colorscale="Viridis",
+        z=Z, x=x_axis, y=y_axis, colorscale=custom_teal_scale,
         colorbar=dict(title=dict(text="PaO2", font=dict(color=FONT, size=9)), thickness=10, len=0.6, tickfont=dict(size=8, color=FONT))
     )])
     fig_3d.update_layout(
         scene=dict(
             xaxis_title='FiO2', yaxis_title='RR', zaxis_title='PaO2',
             camera=dict(eye=dict(x=1.75, y=1.75, z=1.3)),
-            xaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID, tickfont=dict(size=8, color=FONT)),
-            yaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID, tickfont=dict(size=8, color=FONT)),
-            zaxis=dict(backgroundcolor='rgba(0,0,0,0)', gridcolor=GRID, tickfont=dict(size=8, color=FONT))
+            xaxis=dict(backgroundcolor='rgba(1, 0, 1, 0.6)', gridcolor=GRID, tickfont=dict(size=8, color=FONT)),
+            yaxis=dict(backgroundcolor='rgba(1, 0, 1, 0.6)', gridcolor=GRID, tickfont=dict(size=8, color=FONT)),
+            zaxis=dict(backgroundcolor='rgba(1, 0, 1, 0.6)', gridcolor=GRID, tickfont=dict(size=8, color=FONT))
         ),
         margin=dict(l=10, r=10, b=5, t=5), height=320, paper_bgcolor='rgba(0,0,0,0)', font=dict(family='Inter', color=FONT)
     )
@@ -1296,16 +1186,16 @@ with col_vis2:
 
     est_surface_pao2 = round(40 + (2.1 * fio2) - (0.012 * (fio2**1.8)) - (15 / (1 + np.exp(-(rr - 22) / 3))), 1)
     st.markdown(f"""
-        <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(16, 185, 129, 0.3); padding: 12px 14px; border-radius: 10px; margin-top: 8px; font-size: 11px; color: #CBD5E1;">
-            <div style="color: #6EE7B7; font-weight: 700; text-transform: uppercase; margin-bottom: 3px;">⚡ Panel B: Fuzzy Surface Explanation</div>
-            <div>Maps ventilator settings (FiO2 & RR) to oxygen response. Current active state: FiO2 <strong>{fio2}%</strong>, RR <strong>{rr} bpm</strong> ➜ Est. PaO2: <strong>{est_surface_pao2} mmHg</strong>.</div>
-            <div style="margin-top: 5px; color: #94A3B8; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px;">
+        <div style="background: rgba(19, 51, 54, 0.7); border: 1px solid rgba(54, 125, 138, 0.45); padding: 12px 14px; border-radius: 10px; margin-top: 8px; font-size: 11px; color: #E0F2F1;">
+            <div style="color: #367D8A; font-weight: 700; text-transform: uppercase; margin-bottom: 3px;">⚡ Panel B: Fuzzy Surface Explanation</div>
+            <div>Maps ventilator settings (FiO2 & RR) to oxygen response. Current state: FiO2 <strong>{fio2}%</strong>, RR <strong>{rr} bpm</strong> ➜ Est. PaO2: <strong>{est_surface_pao2} mmHg</strong>.</div>
+            <div style="margin-top: 5px; color: #367D8A; border-top: 1px solid rgba(54, 125, 138, 0.3); padding-top: 4px;">
                 <em>Normal Ranges:</em> FiO2 (Room Air): <strong>21%</strong> | RR (Adult): <strong>12–20 bpm</strong>
             </div>
         </div>
     """, unsafe_allow_html=True)
 
-# --- PANEL C ---
+# --- PANEL C (SHAP FEATURE IMPORTANCE) ---
 with col_vis3:
     st.markdown("**PANEL C: SHAP Feature Importance**")
     
@@ -1318,22 +1208,37 @@ with col_vis3:
         'SHAP Value': [0.08, shap_rr_val, shap_spo2_val, shap_fio2_val]
     }).sort_values(by='SHAP Value', ascending=True)
     
-    colors = ['#1E40AF', '#3B82F6', '#60A5FA', '#93C5FD']
-    fig_bar = go.Figure(go.Bar(x=shap_df['SHAP Value'], y=shap_df['Clinical Feature'], orientation='h',
-        marker=dict(color=colors, line=dict(color='rgba(255,255,255,0.2)', width=1)),
-        text=[f"{v:.2f}" for v in shap_df['SHAP Value']], textposition='outside', textfont=dict(color=FONT, size=10, family='Inter')))
-    fig_bar.update_layout(xaxis_title="SHAP Impact", yaxis_title="", margin=dict(l=10, r=10, b=30, t=10), height=320,
-        plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font=dict(color=FONT, size=11, family='Inter'),
-        xaxis=dict(range=[0, 0.55], gridcolor=GRID, linecolor=GRID, color=FONT), yaxis=dict(gridcolor='rgba(0,0,0,0)', linecolor=GRID, color=FONT))
+    # Palette colors on SHAP bars
+    bar_colors = ['#133336', '#285F6B', '#367D8A', '#FFFFFF']
+    fig_bar = go.Figure(go.Bar(
+        x=shap_df['SHAP Value'], 
+        y=shap_df['Clinical Feature'], 
+        orientation='h',
+        marker=dict(color=bar_colors, line=dict(color='rgba(255,255,255,0.4)', width=1)),
+        text=[f"{v:.2f}" for v in shap_df['SHAP Value']], 
+        textposition='outside', 
+        textfont=dict(color=WHITE, size=10, family='Inter')
+    ))
+    fig_bar.update_layout(
+        xaxis_title="SHAP Impact", 
+        yaxis_title="", 
+        margin=dict(l=10, r=10, b=30, t=10), 
+        height=320,
+        plot_bgcolor='rgba(1, 0, 1, 0.4)', 
+        paper_bgcolor='rgba(0,0,0,0)', 
+        font=dict(color=FONT, size=11, family='Inter'),
+        xaxis=dict(range=[0, 0.55], gridcolor=GRID, linecolor=GRID, color=FONT), 
+        yaxis=dict(gridcolor='rgba(0,0,0,0)', linecolor=GRID, color=FONT)
+    )
     st.plotly_chart(fig_bar, width='stretch')
     
     top_feature = shap_df.iloc[-1]['Clinical Feature']
     top_val = shap_df.iloc[-1]['SHAP Value']
     st.markdown(f"""
-        <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(245, 158, 11, 0.3); padding: 12px 14px; border-radius: 10px; margin-top: 8px; font-size: 11px; color: #CBD5E1;">
-            <div style="color: #FDE68A; font-weight: 700; text-transform: uppercase; margin-bottom: 3px;">⚡ Panel C: Explainable AI (SHAP)</div>
-            <div>Ranks clinical drivers impacting this patient's prediction. Top risk driver: <strong>{top_feature}</strong> (Impact score: <strong>{top_val}</strong>).</div>
-            <div style="margin-top: 5px; color: #94A3B8; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px;">
+        <div style="background: rgba(19, 51, 54, 0.7); border: 1px solid rgba(54, 125, 138, 0.45); padding: 12px 14px; border-radius: 10px; margin-top: 8px; font-size: 11px; color: #E0F2F1;">
+            <div style="color: #FFFFFF; font-weight: 700; text-transform: uppercase; margin-bottom: 3px;">⚡ Panel C: Explainable AI (SHAP)</div>
+            <div>Ranks clinical drivers impacting this patient. Primary risk driver: <strong>{top_feature}</strong> (Impact score: <strong>{top_val}</strong>).</div>
+            <div style="margin-top: 5px; color: #367D8A; border-top: 1px solid rgba(54, 125, 138, 0.3); padding-top: 4px;">
                 <em>Normal Ranges:</em> SpO2: <strong>95–100%</strong> | Heart Rate: <strong>60–100 bpm</strong>
             </div>
         </div>
@@ -1371,14 +1276,14 @@ if st.session_state.active_patient is not None and CLOUD_ENABLED:
 
 st.markdown("""
     <div class="footer">
-        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 3.4 · Cloud-Enabled<br>
+        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 3.4 · Obsidian Teal Theme<br>
         © 2024 Faculty of Electrical Engineering, UiTM Pasir Gudang<br>
         For clinical decision support only — always verify with attending physician.
     </div>
 """, unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
-# 16. FLOATING NEX VOICE ASSISTANT ORB
+# 16. FLOATING NEX VOICE ASSISTANT ORB (TEAL AESTHETIC)
 # ------------------------------------------------------------------
 telemetry_payload = {
     "patient_id": str(patient_record.get("patient_id") or "Active Patient"),
@@ -1416,22 +1321,22 @@ floating_orb_script = f"""
         }}
         .nex-bubble-container {{
             pointer-events: auto !important; display: none; max-width: 420px;
-            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(16px);
-            border: 1px solid rgba(56, 189, 248, 0.5); color: #F8FAFC;
+            background: rgba(1, 0, 1, 0.95); backdrop-filter: blur(16px);
+            border: 1px solid #367D8A; color: #FFFFFF;
             padding: 12px 16px; border-radius: 14px; font-size: 13px; margin-bottom: 12px; text-align: center;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 10px 25px rgba(1, 0, 1, 0.8);
         }}
         .nex-orb-button {{
             pointer-events: auto !important; width: 64px; height: 64px; border-radius: 50%;
-            background: radial-gradient(circle at 35% 35%, #38BDF8 0%, #2563EB 55%, #0F172A 100%);
-            box-shadow: 0 0 25px rgba(56, 189, 248, 0.7); border: 2.5px solid rgba(255, 255, 255, 0.4);
+            background: radial-gradient(circle at 35% 35%, #FFFFFF 0%, #367D8A 45%, #133336 80%, #010001 100%);
+            box-shadow: 0 0 25px rgba(54, 125, 138, 0.8); border: 2px solid rgba(255, 255, 255, 0.6);
             cursor: pointer; display: flex; align-items: center; justify-content: center; outline: none;
             transition: transform 0.2s ease;
         }}
         .nex-orb-button:hover {{ transform: scale(1.06); }}
         .nex-subtext {{
-            margin-top: 6px; font-size: 11px; font-weight: 700; color: #93C5FD;
-            background: rgba(15, 23, 42, 0.75); padding: 2px 10px; border-radius: 20px;
+            margin-top: 6px; font-size: 11px; font-weight: 700; color: #FFFFFF;
+            background: rgba(19, 51, 54, 0.85); border: 1px solid #367D8A; padding: 2px 10px; border-radius: 20px;
         }}
     `;
 
@@ -1439,11 +1344,11 @@ floating_orb_script = f"""
     root.id = 'nex-floating-root';
     root.innerHTML = `
         <div id="nexBubbleBox" class="nex-bubble-container">
-            <div style="color: #38BDF8; font-weight: 800; font-size: 11px; margin-bottom: 4px;">⚡ NEX Clinical Copilot</div>
+            <div style="color: #367D8A; font-weight: 800; font-size: 11px; margin-bottom: 4px;">⚡ NEX Clinical Copilot</div>
             <div id="nexBubbleContent">Telemetry Synced. Click orb for voice briefing.</div>
         </div>
         <button id="nexOrbTrigger" class="nex-orb-button">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2">
                 <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                 <line x1="12" y1="19" x2="12" y2="22"></line>
