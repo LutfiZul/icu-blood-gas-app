@@ -199,7 +199,6 @@ st.markdown(f"""
         border-top: 1px solid rgba(59, 130, 246, 0.2);
     }}
     
-    /* ============ UPLOAD ANIMATION STYLES ============ */
     .upload-status-box {{
         padding: 14px 18px;
         border-radius: 12px;
@@ -679,6 +678,8 @@ if "last_uploaded_file" not in st.session_state:
     st.session_state.last_uploaded_file = None
 if "selected_csv_pid" not in st.session_state:
     st.session_state.selected_csv_pid = None
+if "current_active_pid" not in st.session_state:
+    st.session_state.current_active_pid = None
 
 # ------------------------------------------------------------------
 # 6. SIDEBAR - SEARCH
@@ -855,6 +856,17 @@ elif st.session_state.active_patient is not None:
     patient_record = rec
     derived_metrics = compute_derived_abg(rec)
 
+# ==============================================================================
+# SMART CACHE RESET JIKA PATIENT ID BERTUKAR
+# ==============================================================================
+detected_pid = str(patient_record.get("patient_id") or "default")
+if st.session_state.current_active_pid != detected_pid:
+    st.session_state.current_active_pid = detected_pid
+    # Reset semua kunci input berkaitan pesakit terdahulu
+    keys_to_clear = [k for k in list(st.session_state.keys()) if any(x in k for x in ["_slider", "_num", "in_ph", "in_pao2", "in_paco2", "in_hco3"])]
+    for k in keys_to_clear:
+        del st.session_state[k]
+
 if patient_record and (patient_record.get("patient_id") or patient_record.get("age")):
     pid = patient_record.get("patient_id") or "—"
     st.sidebar.markdown("### 👤 Patient Summary")
@@ -867,10 +879,10 @@ if patient_record and (patient_record.get("patient_id") or patient_record.get("a
     """)
 
 # ------------------------------------------------------------------
-# 8. BASELINE ABG + MODEL INPUT
+# 8. BASELINE ABG + MODEL INPUT (DYNAMIC KEYS PER PATIENT)
 # ------------------------------------------------------------------
 st.sidebar.markdown("## 🩸 Baseline ABG (Hour 0)")
-active_pid_key = str(patient_record.get("patient_id") or "default")
+active_pid_key = detected_pid
 
 ph_0 = st.sidebar.number_input("Baseline pH", 6.50, 7.80, float(defaults["ph_0"]), 0.01, key=f"in_ph_{active_pid_key}")
 pao2_0 = st.sidebar.number_input("Baseline PaO2 (mmHg)", 1.0, 400.0, float(defaults["pao2_0"]), 1.0, key=f"in_pao2_{active_pid_key}")
@@ -884,14 +896,16 @@ def synced_input(label, min_val, max_val, default, step, key_prefix):
     slider_key = f"{key_prefix}_slider_{active_pid_key}"
     num_key = f"{key_prefix}_num_{active_pid_key}"
     default_clamped = max(min_val, min(max_val, int(round(float(default)))))
-    if slider_key not in st.session_state or st.session_state.get(f"{key_prefix}_last_def_{active_pid_key}") != default_clamped:
+    
+    if slider_key not in st.session_state:
         st.session_state[slider_key] = default_clamped
         st.session_state[num_key] = default_clamped
-        st.session_state[f"{key_prefix}_last_def_{active_pid_key}"] = default_clamped
+        
     def update_slider():
         st.session_state[slider_key] = st.session_state[num_key]
     def update_num():
         st.session_state[num_key] = st.session_state[slider_key]
+        
     c1, c2 = st.sidebar.columns([2.5, 1.2])
     with c1:
         val = st.slider(label, min_val, max_val, key=slider_key, on_change=update_num, step=step)
@@ -1133,14 +1147,16 @@ with col_vis1:
         </div>
     """, unsafe_allow_html=True)
 
-# --- PANEL B (WITH AUTO-ROTATE IDLE ANIMATION) ---
+# --- PANEL B (WITH DYNAMIC LEGEND & AUTO-ROTATE IDLE ANIMATION) ---
 with col_vis2:
     st.markdown("**PANEL B: ANFIS 3D Fuzzy Surface**")
-    st.markdown("""
+    
+    # Nilai nombor dipaparkan secara tepat (tanpa string brackets yang rosak)
+    st.markdown(f"""
         <div style="display: flex; justify-content: space-between; gap: 4px; margin-bottom: 4px; font-size: 10px;">
             <span style="background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(96, 165, 250, 0.4); padding: 2px 6px; border-radius: 4px; color: #93C5FD;">X: FiO2 ({fio2}%)</span>
-            <span style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(52, 211, 153, 0.4); padding: 2px 6px; border-radius: 4px; color: #6EE7B7;">Y: RR ({rr})</span>
-            <span style="background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(251, 191, 36, 0.4); padding: 2px 6px; border-radius: 4px; color: #FDE68A;">Z: PaO2</span>
+            <span style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(52, 211, 153, 0.4); padding: 2px 6px; border-radius: 4px; color: #6EE7B7;">Y: RR ({rr} bpm)</span>
+            <span style="background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(251, 191, 36, 0.4); padding: 2px 6px; border-radius: 4px; color: #FDE68A;">Z: PaO2 (mmHg)</span>
         </div>
     """, unsafe_allow_html=True)
 
@@ -1224,6 +1240,7 @@ with col_vis2:
 with col_vis3:
     st.markdown("**PANEL C: SHAP Feature Importance**")
     
+    # SHAP dikira dinamik mengikut kondisi pesakit aktif
     shap_rr_val = round(0.15 + (rr / 100.0), 2)
     shap_fio2_val = round(0.45 - (abs(fio2 - 40) / 300.0), 2)
     shap_spo2_val = round(0.31, 2)
