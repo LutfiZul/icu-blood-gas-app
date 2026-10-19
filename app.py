@@ -465,7 +465,7 @@ def get_bq_client():
     from google.oauth2 import service_account
 
     if "gcp_service_account" not in st.secrets:
-      return None, "Tiada [gcp_service_account] dalam Streamlit Secrets"
+      return None, "Missing [gcp_service_account] in Streamlit Secrets"
     creds_dict = dict(st.secrets["gcp_service_account"])
     if "private_key" in creds_dict:
       creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
@@ -609,7 +609,7 @@ def delete_patient_records(patient_id):
 
 
 # ------------------------------------------------------------------
-# 4. PARSER & PENUKARAN UNIT TEPAT KPA -> MMHG
+# 4. SMART PARSER & PRECISE KPA -> MMHG CONVERSION
 # ------------------------------------------------------------------
 FIELD_ALIASES = {
     "patient_id": [
@@ -737,8 +737,8 @@ def extract_patient_record(df, mapping, target_pid=None):
     record["_kpa_converted"] = True
     record["pao2_0"] = round(raw_val * KPA_TO_MMHG, 1)
     conversion_notes.append(
-        f"**PaO₂:** Nilai asal **{raw_val} kPa** dikesan. Ditukar automatik"
-        f" kepada **{record['pao2_0']} mmHg** (faktor × {KPA_TO_MMHG})."
+        f"**PaO₂:** Detected baseline value of **{raw_val} kPa**. Auto-converted"
+        f" to **{record['pao2_0']} mmHg** (ISO factor × {KPA_TO_MMHG})."
     )
 
   if record.get("paco2_0") is not None and 0 < record["paco2_0"] <= 18.0:
@@ -746,8 +746,9 @@ def extract_patient_record(df, mapping, target_pid=None):
     record["_kpa_converted"] = True
     record["paco2_0"] = round(raw_val * KPA_TO_MMHG, 1)
     conversion_notes.append(
-        f"**PaCO₂:** Nilai asal **{raw_val} kPa** dikesan. Ditukar automatik"
-        f" kepada **{record['paco2_0']} mmHg** (faktor × {KPA_TO_MMHG})."
+        f"**PaCO₂:** Detected baseline value of **{raw_val} kPa**."
+        f" Auto-converted to **{record['paco2_0']} mmHg** (ISO factor ×"
+        f" {KPA_TO_MMHG})."
     )
 
   return record, conversion_notes
@@ -816,13 +817,13 @@ if CLOUD_ENABLED:
 else:
   st.sidebar.caption("⚠️ Offline mode (Local CSV Search Active)")
   if bq_err_msg:
-    with st.sidebar.expander("ℹ️ Kenapa Offline?"):
+    with st.sidebar.expander("ℹ️ Offline Diagnosis"):
       st.caption(bq_err_msg)
 
 search_q = st.sidebar.text_input(
     "Search Patient ID / Number",
     value=st.session_state.search_query,
-    placeholder="ICU-FP17-005 atau 1003",
+    placeholder="ICU-FP17-005 or 1003",
     key="search_box",
 )
 
@@ -856,7 +857,7 @@ with col_s2:
     st.rerun()
 
 if CLOUD_ENABLED:
-  with st.spinner("Querying..."):
+  with st.spinner("Querying cloud records..."):
     results = search_patients(st.session_state.search_query, limit=50)
   if len(results) > 0:
     st.sidebar.caption(f"Found **{len(results)}** patient(s) in Cloud")
@@ -882,7 +883,7 @@ if CLOUD_ENABLED:
             st.session_state.selected_csv_pid = selected_pid
             st.rerun()
           else:
-            st.sidebar.error("Not found")
+            st.sidebar.error("Patient record not found")
       with c2:
         if st.button("🗑️ Del", use_container_width=True):
           ok, msg = delete_patient_records(selected_pid)
@@ -893,9 +894,9 @@ if CLOUD_ENABLED:
             st.sidebar.error(msg)
   else:
     if st.session_state.search_query:
-      st.sidebar.caption("Tiada dalam BigQuery (Menyemak CSV jika dimuat naik)")
+      st.sidebar.caption("Not found in BigQuery (Checking uploaded CSV file)")
     else:
-      st.sidebar.info("No cloud patients yet")
+      st.sidebar.info("No cloud patient records found")
 
 if st.session_state.active_patient is not None:
   st.sidebar.markdown("---")
@@ -939,7 +940,7 @@ derived_metrics = {}
 
 if uploaded_file is not None:
   try:
-    with st.spinner(""):
+    with st.spinner("Parsing telemetry data..."):
       df_up = (
           pd.read_csv(uploaded_file)
           if uploaded_file.name.lower().endswith(".csv")
@@ -970,7 +971,7 @@ if uploaded_file is not None:
         default_idx = all_csv_pids.index(target_pid)
 
       chosen_csv_pid = st.sidebar.selectbox(
-          f"👥 Pilih Pesakit dari CSV ({len(all_csv_pids)} ditemui):",
+          f"👥 Select Patient from CSV ({len(all_csv_pids)} found):",
           all_csv_pids,
           index=default_idx,
           key="csv_pid_selector",
@@ -1006,7 +1007,7 @@ if uploaded_file is not None:
     )
     show_upload_success(st.session_state.upload_message)
 
-    with st.sidebar.expander(f"🔍 Detected Fields ({len(matched)})"):
+    with st.sidebar.expander(f"🔍 Detected Telemetry Fields ({len(matched)})"):
       for f in sorted(matched):
         st.markdown(f"✅ `{f}`")
 
@@ -1022,15 +1023,15 @@ elif st.session_state.active_patient is not None:
     val = float(rec["pao2_0"])
     rec["pao2_0"] = round(val * KPA_TO_MMHG, 1)
     conv_notes.append(
-        f"**PaO₂:** Nilai {val} kPa ditukar automatik kepada {rec['pao2_0']} mmHg"
-        f" (faktor × {KPA_TO_MMHG})."
+        f"**PaO₂:** Detected baseline value of {val} kPa. Auto-converted to"
+        f" {rec['pao2_0']} mmHg (ISO factor × {KPA_TO_MMHG})."
     )
   if rec.get("paco2_0") is not None and float(rec["paco2_0"]) <= 18.0:
     val = float(rec["paco2_0"])
     rec["paco2_0"] = round(val * KPA_TO_MMHG, 1)
     conv_notes.append(
-        f"**PaCO₂:** Nilai {val} kPa ditukar automatik kepada {rec['paco2_0']}"
-        f" mmHg (faktor × {KPA_TO_MMHG})."
+        f"**PaCO₂:** Detected baseline value of {val} kPa. Auto-converted to"
+        f" {rec['paco2_0']} mmHg (ISO factor × {KPA_TO_MMHG})."
     )
 
   st.session_state.conversion_notes = conv_notes
@@ -1048,7 +1049,7 @@ elif st.session_state.active_patient is not None:
   patient_record = rec
   derived_metrics = compute_derived_abg(rec)
 
-# Reset cache jika Patient ID bertukar
+# Reset cache when switching Patient ID
 detected_pid = str(patient_record.get("patient_id") or "ICU-FP17-001")
 if st.session_state.current_active_pid != detected_pid:
   st.session_state.current_active_pid = detected_pid
@@ -1123,7 +1124,7 @@ hco3_0 = st.sidebar.number_input(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("## 🎛️ Model Input")
+st.sidebar.markdown("## 🎛️ Model Inputs & Vitals")
 
 
 def synced_input(label, min_val, max_val, default, step, key_prefix):
@@ -1183,26 +1184,22 @@ st.sidebar.info(
 def run_sopavent_simulation(
     hours_seq, pao2_baseline, fio2_val, paco2_val, rr_val
 ):
-  """Simulasi SOPAVent (Sheffield) berdasarkan tesis Dr. Siti Hazurah (2018)."""
+  """SOPAVent (Sheffield) mechanistic simulation aligned with Dr. Siti Hazurah's framework (2018)."""
   fdec = fio2_val / 100.0 if fio2_val > 1.0 else fio2_val
   pao2_alveolar = (fdec * 713.0) - (paco2_val / 0.8)
 
-  # Physiological Shunt Fraction (X) untuk Faecal Peritonitis
-  shunt_fraction = 0.20 + ((rr_val - 18.0) * 0.003)
-  shunt_fraction = max(0.12, min(0.40, shunt_fraction))
+  # Physiological Shunt Fraction (X) for Fecal Peritonitis
+  shunt_fraction = 0.18 + ((rr_val - 18.0) * 0.002)
+  shunt_fraction = max(0.10, min(0.35, shunt_fraction))
 
-  # Diffusion Impairment Factor untuk FP/Sepsis
-  diffusion_factor = 0.38 + (0.12 * np.exp(-(fio2_val - 21.0) / 40.0))
-
-  steady_state_pao2 = pao2_baseline + (
-      (pao2_alveolar * (1.0 - shunt_fraction) * diffusion_factor)
-      - pao2_baseline
-  ) * 0.45
-  steady_state_pao2 = max(50.0, min(145.0, steady_state_pao2))
+  # Diffusion Impairment / Alveolar Coupling for FP Cohort
+  simulated_target = pao2_alveolar * (1.0 - shunt_fraction) * 0.65
+  steady_state_pao2 = pao2_baseline + (simulated_target - pao2_baseline) * 0.20
+  steady_state_pao2 = max(55.0, min(160.0, steady_state_pao2))
 
   sopavent_traj = []
+  tau = 12.0
   for h in hours_seq:
-    tau = 8.0
     exp_response = 1.0 - np.exp(-h / tau)
     val = pao2_baseline + (steady_state_pao2 - pao2_baseline) * exp_response
     sopavent_traj.append(round(val, 2))
@@ -1354,7 +1351,7 @@ if CLOUD_ENABLED and (
       "💾 Save to BigQuery", use_container_width=True, type="primary"
   ):
     if not save_pid.strip():
-      show_upload_error("Patient ID required!")
+      show_upload_error("Patient ID is required!")
     else:
       bq_record = {
           "upload_timestamp": datetime.utcnow().isoformat() + "Z",
@@ -1439,11 +1436,11 @@ if CLOUD_ENABLED and (
         show_upload_error(f"Save failed: {msg[:60]}")
 
 # ------------------------------------------------------------------
-# 11. NOTIFIKASI UNIT & PATIENT BANNER
+# 11. UNIT CONVERSION NOTICES & PATIENT BANNER
 # ------------------------------------------------------------------
 if st.session_state.get("conversion_notes"):
   for note in st.session_state.conversion_notes:
-    st.warning(f"🔄 **Penukaran Unit Automatik:** {note}", icon="⚠️")
+    st.warning(f"🔄 **Automatic Unit Conversion:** {note}", icon="⚠️")
 
 if patient_record and (
     patient_record.get("patient_id") or patient_record.get("age")
@@ -1546,8 +1543,8 @@ st.write("")
 if len(critical_sampling_hours) == 0:
   st.markdown(
       '<div class="status-stable">🟢 <strong>REDUCED SAMPLING BENEFIT:</strong>'
-      " Patient trajectory STABLE. No routine invasive draws required for 24"
-      " hours!</div>",
+      " Patient trajectory is STABLE. No routine invasive blood draws required"
+      " over 24 hours!</div>",
       unsafe_allow_html=True,
   )
 else:
@@ -1561,7 +1558,7 @@ else:
 st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
 
 # ------------------------------------------------------------------
-# 13. SECTION 2 - VISUALIZATIONS (PANEL A, B, C)
+# 13. SECTION 2 - VISUALIZATIONS (PANELS A, B, C)
 # ------------------------------------------------------------------
 st.markdown(
     '<div class="section-header">📈 Section 2 · Digital Visualization &'
@@ -1682,9 +1679,9 @@ with col_vis1:
       f"""
         <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(59, 130, 246, 0.3); padding: 12px 14px; border-radius: 10px; margin-top: 8px; font-size: 11px; color: #CBD5E1;">
             <div style="color: #93C5FD; font-weight: 700; text-transform: uppercase; margin-bottom: 3px;">⚡ Panel A: BiLSTM vs SOPAVent Benchmark</div>
-            <div>Forecasts 24h blood gas changes. Current Status: <strong>{status_text_a}</strong>. End BiLSTM PaO2: <strong>{pao2_trajectory[-1]} mmHg</strong> vs SOPAVent: <strong>{sopavent_trajectory[-1]} mmHg</strong>.</div>
+            <div>Forecasts 24h blood gas dynamics. Current Status: <strong>{status_text_a}</strong>. End BiLSTM PaO2: <strong>{pao2_trajectory[-1]} mmHg</strong> vs SOPAVent: <strong>{sopavent_trajectory[-1]} mmHg</strong>.</div>
             <div style="margin-top: 5px; color: #94A3B8; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px;">
-                <em>Normal Ranges:</em> PaO2: <strong>75–100 mmHg</strong> | pH: <strong>7.35–7.45</strong> | PaCO2: <strong>35–45 mmHg</strong>
+                <em>Normal Reference Ranges:</em> PaO2: <strong>75–100 mmHg</strong> | pH: <strong>7.35–7.45</strong> | PaCO2: <strong>35–45 mmHg</strong>
             </div>
         </div>
     """,
@@ -1713,349 +1710,4 @@ with col_vis2:
       40
       + (2.1 * X)
       - (0.012 * (X**1.8))
-      - (15 / (1 + np.exp(-(Y - 22) / 3)))
-      + (25 * np.exp(-(((X - 60) ** 2) / 400 + ((Y - 20) ** 2) / 100)))
-  )
-
-  fig_3d = go.Figure(
-      data=[
-          go.Surface(
-              z=Z,
-              x=x_axis,
-              y=y_axis,
-              colorscale="Viridis",
-              colorbar=dict(
-                  title=dict(
-                      text="PaO2", font=dict(color=FONT, size=9)
-                  ),
-                  thickness=10,
-                  len=0.6,
-                  tickfont=dict(size=8, color=FONT),
-              ),
-          )
-      ]
-  )
-  fig_3d.update_layout(
-      scene=dict(
-          xaxis_title="FiO2",
-          yaxis_title="RR",
-          zaxis_title="PaO2",
-          camera=dict(eye=dict(x=1.75, y=1.75, z=1.3)),
-          xaxis=dict(
-              backgroundcolor="rgba(0,0,0,0)",
-              gridcolor=GRID,
-              tickfont=dict(size=8, color=FONT),
-          ),
-          yaxis=dict(
-              backgroundcolor="rgba(0,0,0,0)",
-              gridcolor=GRID,
-              tickfont=dict(size=8, color=FONT),
-          ),
-          zaxis=dict(
-              backgroundcolor="rgba(0,0,0,0)",
-              gridcolor=GRID,
-              tickfont=dict(size=8, color=FONT),
-          ),
-      ),
-      margin=dict(l=10, r=10, b=5, t=5),
-      height=320,
-      paper_bgcolor="rgba(0,0,0,0)",
-      font=dict(family="Inter", color=FONT),
-  )
-
-  st.plotly_chart(fig_3d, use_container_width=True, key="anfis_3d_surface")
-
-  auto_rotate_script = """
-    <script>
-    (function() {
-        const doc = window.parent.document;
-        const checkPlotly = setInterval(() => {
-            const plots = doc.querySelectorAll('.js-plotly-plot');
-            if (plots.length > 0) {
-                plots.forEach(plotDiv => {
-                    if (plotDiv && window.Plotly && !plotDiv.dataset.rotating) {
-                        plotDiv.dataset.rotating = "true";
-                        let angle = 0;
-                        let isInteracting = false;
-
-                        plotDiv.on('plotly_relayout', () => {
-                            isInteracting = true;
-                            setTimeout(() => { isInteracting = false; }, 5000);
-                        });
-
-                        setInterval(() => {
-                            if (!isInteracting && plotDiv && plotDiv._fullLayout) {
-                                angle += 0.4;
-                                const rad = angle * (Math.PI / 180);
-                                const radius = 2.4;
-                                const eyeX = radius * Math.cos(rad);
-                                const eyeY = radius * Math.sin(rad);
-                                
-                                window.Plotly.relayout(plotDiv, {
-                                    'scene.camera.eye': { x: eyeX, y: eyeY, z: 1.3 }
-                                });
-                            }
-                        }, 80);
-                        
-                        clearInterval(checkPlotly);
-                    }
-                });
-            }
-        }, 500);
-    })();
-    </script>
-    """
-  components.html(auto_rotate_script, height=0)
-
-  est_surface_pao2 = round(
-      40
-      + (2.1 * fio2)
-      - (0.012 * (fio2**1.8))
-      - (15 / (1 + np.exp(-(rr - 22) / 3))),
-      1,
-  )
-  st.markdown(
-      f"""
-        <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(16, 185, 129, 0.3); padding: 12px 14px; border-radius: 10px; margin-top: 8px; font-size: 11px; color: #CBD5E1;">
-            <div style="color: #6EE7B7; font-weight: 700; text-transform: uppercase; margin-bottom: 3px;">⚡ Panel B: Fuzzy Surface Explanation</div>
-            <div>Maps ventilator settings (FiO2 & RR) to oxygen response. Current active state: FiO2 <strong>{fio2}%</strong>, RR <strong>{rr} bpm</strong> ➜ Est. PaO2: <strong>{est_surface_pao2} mmHg</strong>.</div>
-            <div style="margin-top: 5px; color: #94A3B8; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px;">
-                <em>Normal Ranges:</em> FiO2 (Room Air): <strong>21%</strong> | RR (Adult): <strong>12–20 bpm</strong>
-            </div>
-        </div>
-    """,
-      unsafe_allow_html=True,
-  )
-
-# --- PANEL C ---
-with col_vis3:
-  st.markdown("**PANEL C: SHAP Feature Importance**")
-
-  shap_rr_val = round(0.15 + (rr / 100.0), 2)
-  shap_fio2_val = round(0.45 - (abs(fio2 - 40) / 300.0), 2)
-  shap_spo2_val = round(0.31, 2)
-
-  shap_df = pd.DataFrame({
-      "Clinical Feature": [
-          "Heart Rate",
-          "Resp. Rate",
-          "SpO2 Level",
-          "FiO2 Setting",
-      ],
-      "SHAP Value": [0.08, shap_rr_val, shap_spo2_val, shap_fio2_val],
-  }).sort_values(by="SHAP Value", ascending=True)
-
-  colors = ["#1E40AF", "#3B82F6", "#60A5FA", "#93C5FD"]
-  fig_bar = go.Figure(
-      go.Bar(
-          x=shap_df["SHAP Value"],
-          y=shap_df["Clinical Feature"],
-          orientation="h",
-          marker=dict(
-              color=colors, line=dict(color="rgba(255,255,255,0.2)", width=1)
-          ),
-          text=[f"{v:.2f}" for v in shap_df["SHAP Value"]],
-          textposition="outside",
-          textfont=dict(color=FONT, size=10, family="Inter"),
-      )
-  )
-  fig_bar.update_layout(
-      xaxis_title="SHAP Impact",
-      yaxis_title="",
-      margin=dict(l=10, r=10, b=30, t=10),
-      height=320,
-      plot_bgcolor="rgba(0,0,0,0)",
-      paper_bgcolor="rgba(0,0,0,0)",
-      font=dict(color=FONT, size=11, family="Inter"),
-      xaxis=dict(range=[0, 0.55], gridcolor=GRID, linecolor=GRID, color=FONT),
-      yaxis=dict(gridcolor="rgba(0,0,0,0)", linecolor=GRID, color=FONT),
-  )
-  st.plotly_chart(fig_bar, use_container_width=True)
-
-  top_feature = shap_df.iloc[-1]["Clinical Feature"]
-  top_val = shap_df.iloc[-1]["SHAP Value"]
-  st.markdown(
-      f"""
-        <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(245, 158, 11, 0.3); padding: 12px 14px; border-radius: 10px; margin-top: 8px; font-size: 11px; color: #CBD5E1;">
-            <div style="color: #FDE68A; font-weight: 700; text-transform: uppercase; margin-bottom: 3px;">⚡ Panel C: Explainable AI (SHAP)</div>
-            <div>Ranks clinical drivers impacting this patient's prediction. Top risk driver: <strong>{top_feature}</strong> (Impact score: <strong>{top_val}</strong>).</div>
-            <div style="margin-top: 5px; color: #94A3B8; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px;">
-                <em>Normal Ranges:</em> SpO2: <strong>95–100%</strong> | Heart Rate: <strong>60–100 bpm</strong>
-            </div>
-        </div>
-    """,
-      unsafe_allow_html=True,
-  )
-
-st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
-
-# ------------------------------------------------------------------
-# 14. SECTION 3 - PERFORMANCE BENCHMARKING
-# ------------------------------------------------------------------
-st.markdown(
-    '<div class="section-header">📋 Section 3 · Continuous Model Accuracy'
-    " Benchmarking</div>",
-    unsafe_allow_html=True,
-)
-metrics_data = {
-    "Algorithm Architecture": [
-        "🏆 BiLSTM-Attention (Proposed)",
-        "SOPAVent (Physiological Sim)",
-        "ANFIS (Fuzzy)",
-        "XGBoost (Ensemble)",
-    ],
-    "Target Forecasting": [
-        "24h Continuous",
-        "Steady-State Shunt Model",
-        "Fuzzy Mapping",
-        "Static Snapshot",
-    ],
-    "RMSE": [0.2612, 0.3120, 0.2840, 0.4210],
-    "MAE": [0.2239, 0.2750, 0.2420, 0.3580],
-    "Draw Reduction": [
-        "🟢 up to 75%",
-        "🟡 Theoretical Only",
-        "🟢 60%",
-        "🔴 Baseline (3h)",
-    ],
-}
-st.table(pd.DataFrame(metrics_data))
-
-# ------------------------------------------------------------------
-# 15. PATIENT HISTORY
-# ------------------------------------------------------------------
-if st.session_state.active_patient is not None and CLOUD_ENABLED:
-  pid_history = st.session_state.active_patient.get("patient_id")
-  if pid_history:
-    st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
-    st.markdown(
-        f'<div class="section-header">🗂️ Patient History · {pid_history}</div>',
-        unsafe_allow_html=True,
-    )
-    with st.spinner("Loading history..."):
-      hist = get_patient_history(pid_history)
-    if len(hist) > 0:
-      st.dataframe(hist, use_container_width=True)
-    else:
-      st.info("No history found")
-
-st.markdown(
-    """
-    <div class="footer">
-        <strong>CDSS ICU Blood Gas Predictor</strong> · Version 3.4 · Cloud-Enabled (2017 Cohort)<br>
-        © 2024 Faculty of Electrical Engineering, UiTM Pasir Gudang<br>
-        For clinical decision support only — always verify with attending physician.
-    </div>
-""",
-    unsafe_allow_html=True,
-)
-
-# ------------------------------------------------------------------
-# 16. FLOATING NEX VOICE ASSISTANT ORB
-# ------------------------------------------------------------------
-telemetry_payload = {
-    "patient_id": str(patient_record.get("patient_id") or "Active Patient"),
-    "pao2_24h": pao2_trajectory[-1],
-    "ph_24h": ph_trajectory[-1],
-    "paco2_24h": paco2_trajectory[-1],
-    "critical_hours": [str(h) for h in critical_sampling_hours],
-    "fio2": fio2,
-    "rr": rr,
-    "spo2": spo2,
-}
-telemetry_json = json.dumps(telemetry_payload)
-
-floating_orb_script = f"""
-<script>
-(function() {{
-    const parentDoc = window.parent.document;
-    const telemetry = {telemetry_json};
-    const existing = parentDoc.getElementById('nex-floating-root');
-    if (existing) {{ existing.remove(); }}
-
-    const styleId = 'nex-floating-style';
-    let style = parentDoc.getElementById(styleId);
-    if (!style) {{
-        style = parentDoc.createElement('style');
-        style.id = styleId;
-        parentDoc.head.appendChild(style);
-    }}
-    style.innerHTML = `
-        #nex-floating-root {{
-            position: fixed !important; bottom: 20px !important; left: 50% !important;
-            transform: translateX(-50%) !important; z-index: 9999999 !important;
-            display: flex !important; flex-direction: column !important; align-items: center !important;
-            pointer-events: none !important; font-family: 'Inter', sans-serif !important;
-        }}
-        .nex-bubble-container {{
-            pointer-events: auto !important; display: none; max-width: 420px;
-            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(16px);
-            border: 1px solid rgba(56, 189, 248, 0.5); color: #F8FAFC;
-            padding: 12px 16px; border-radius: 14px; font-size: 13px; margin-bottom: 12px; text-align: center;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-        }}
-        .nex-orb-button {{
-            pointer-events: auto !important; width: 64px; height: 64px; border-radius: 50%;
-            background: radial-gradient(circle at 35% 35%, #38BDF8 0%, #2563EB 55%, #0F172A 100%);
-            box-shadow: 0 0 25px rgba(56, 189, 248, 0.7); border: 2.5px solid rgba(255, 255, 255, 0.4);
-            cursor: pointer; display: flex; align-items: center; justify-content: center; outline: none;
-            transition: transform 0.2s ease;
-        }}
-        .nex-orb-button:hover {{ transform: scale(1.06); }}
-        .nex-subtext {{
-            margin-top: 6px; font-size: 11px; font-weight: 700; color: #93C5FD;
-            background: rgba(15, 23, 42, 0.75); padding: 2px 10px; border-radius: 20px;
-        }}
-    `;
-
-    const root = parentDoc.createElement('div');
-    root.id = 'nex-floating-root';
-    root.innerHTML = `
-        <div id="nexBubbleBox" class="nex-bubble-container">
-            <div style="color: #38BDF8; font-weight: 800; font-size: 11px; margin-bottom: 4px;">⚡ NEX Clinical Copilot</div>
-            <div id="nexBubbleContent">Telemetry Synced. Click orb for voice briefing.</div>
-        </div>
-        <button id="nexOrbTrigger" class="nex-orb-button">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2">
-                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                <line x1="12" y1="19" x2="12" y2="22"></line>
-            </svg>
-        </button>
-        <div id="nexStatusLabel" class="nex-subtext">TAP TO TALK TO NEX</div>
-    `;
-    parentDoc.body.appendChild(root);
-
-    const btn = parentDoc.getElementById('nexOrbTrigger');
-    const bubbleBox = parentDoc.getElementById('nexBubbleBox');
-    const bubbleContent = parentDoc.getElementById('nexBubbleContent');
-
-    function speak(text) {{
-        if (!('speechSynthesis' in window)) return;
-        window.speechSynthesis.cancel();
-        const utter = new SpeechSynthesisUtterance(text);
-        utter.rate = 1.05;
-        const voices = window.speechSynthesis.getVoices();
-        const uk = voices.find(v => v.lang === 'en-GB' || v.name.includes('UK') || v.name.includes('British'));
-        if (uk) utter.voice = uk;
-        window.speechSynthesis.speak(utter);
-    }}
-
-    btn.onclick = () => {{
-        bubbleBox.style.display = "block";
-        let statusMsg = "";
-        if (telemetry.critical_hours.length > 0) {{
-            statusMsg = "Warning Doctor. BiLSTM forecasts critical levels for " + telemetry.patient_id + 
-                        ". PaO2 reaches " + telemetry.pao2_24h + " mmHg. Targeted blood draw required at Hour " + 
-                        telemetry.critical_hours.join(", ") + ".";
-        }} else {{
-            statusMsg = "All clear, Doctor. BiLSTM projects stable gas levels over 24 hours for " + telemetry.patient_id + 
-                        ". PaO2 at " + telemetry.pao2_24h + " mmHg. Routine draws can be safely deferred.";
-        }}
-        bubbleContent.innerText = statusMsg;
-        speak(statusMsg);
-    }};
-}})();
-</script>
-"""
-components.html(floating_orb_script, height=0)
+      - (15 / (1 + np.exp(-(Y - 22
