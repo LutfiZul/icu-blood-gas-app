@@ -923,19 +923,45 @@ st.sidebar.info("🎯 **Goal:** Reduce routine invasive blood sampling from 8×/
 # 9. FORECASTING ENGINE (BiLSTM + SOPAVent Simulation)
 # ------------------------------------------------------------------
 def run_sopavent_simulation(hours_seq, pao2_baseline, fio2_val, paco2_val, rr_val):
-    fdec = fio2_val / 100.0
-    pao2_alveolar = (fdec * (760 - 47)) - (paco2_val / 0.8)
-    shunt_fraction = 0.18 + ((rr_val - 18) * 0.002)
-    shunt_fraction = max(0.05, min(0.40, shunt_fraction))
-    steady_state_pao2 = max(40.0, (pao2_alveolar * (1 - shunt_fraction)) - (shunt_fraction * 45.0))
+    """
+    Simulasi SOPAVent (Sheffield) berdasarkan tesis Dr. Siti Hazurah (2018).
+    Mengambil kira Alveolar Gas Equation, Shunt Secant Tuning, dan 
+    resapan membran kapilari alveolar pesakit Faecal Peritonitis (FP).
+    """
+    fdec = fio2_val / 100.0 if fio2_val > 1.0 else fio2_val
+    
+    # 1. Alveolar Oxygen Tension (PAO2 dalam mmHg)
+    # Persamaan Alveolar (Bab 3 Tesis): PAO2 = FiO2(Pb - PH2O) - PaCO2 / RQ
+    pao2_alveolar = (fdec * 713.0) - (paco2_val / 0.8)
+    
+    # 2. Physiological Shunt Fraction (X) untuk Faecal Peritonitis
+    # Shunt bertambah apabila RR tinggi (takipnea akibat distres metabolik)
+    # Purata shunt FP pesakit ICU: 0.18 - 0.35 (Bab 3.6 & Bab 5)
+    shunt_fraction = 0.20 + ((rr_val - 18.0) * 0.003)
+    shunt_fraction = max(0.12, min(0.40, shunt_fraction))
+    
+    # 3. Keseimbangan Kapilari Paru-paru SOPAVent (Bab 3, Persamaan 3.4 - 3.6)
+    # Pesakit sepsis/peritonitis mempunyai rintangan resapan (diffusion barrier)
+    diffusion_factor = 0.38 + (0.12 * np.exp(-(fio2_val - 21.0) / 40.0))
+    
+    # Nilai Steady-State PaO2 yang dicapai di arteri pulmonari
+    steady_state_pao2 = pao2_baseline + ((pao2_alveolar * (1.0 - shunt_fraction) * diffusion_factor) - pao2_baseline) * 0.45
+    
+    # Had fisiologi Faecal Peritonitis (Jadual 5.5: Max PaO2 ~ 26.1 kPa = 195 mmHg)
+    steady_state_pao2 = max(50.0, min(145.0, steady_state_pao2))
     
     sopavent_traj = []
     for h in hours_seq:
-        frac = h / 24.0
-        val = pao2_baseline + (steady_state_pao2 - pao2_baseline) * frac
+        # Resapan gas eksponen semula jadi (Time-constant tau = 6 - 8 jam), bukan garis lurus
+        tau = 8.0
+        exp_response = 1.0 - np.exp(-h / tau)
+        
+        # Unjuran PaO2 SOPAVent
+        val = pao2_baseline + (steady_state_pao2 - pao2_baseline) * exp_response
         sopavent_traj.append(round(val, 2))
+        
     return sopavent_traj
-
+    
 def run_bilstm_forecast(ph_val, pao2_val, paco2_val, spo2_val, rr_val, fio2_val, age_val, temp_val):
     hours_seq = [0, 3, 6, 9, 12, 15, 18, 21, 24]
     n_steps = len(hours_seq)
